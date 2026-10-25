@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Paper: {{ document.original_filename }} &mdash; ResearchMate AI{% endblock %}
+
+{% block content %}
+<div style="max-width: 550px; margin: 3rem auto;">
+  <div class="card" style="border-top: 4px solid var(--danger);">
+    <h1 class="card-title" style="color: var(--danger); font-size: 1.5rem; margin-bottom: 1rem;">
+      Confirm Document Deletion
+    </h1>
+    <p style="color: var(--text-main); line-height: 1.6; margin-bottom: 1rem;">
+      Are you sure you want to remove <strong>"{{ document.original_filename }}"</strong> from project <em>{{ project.name }}</em>?
+    </p>
+
+    <div style="background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1.5rem; font-size: 0.875rem; color: #991b1b;">
+      <strong>Note:</strong> Removing this document will delete its PDF file from private storage, delete all associated extracted text chunks, and update the project's vector store index.
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <a href="{% url 'project_detail' pk=project.pk %}" class="btn btn-secondary">
+          Cancel
+        </a>
+        <button type="submit" class="btn btn-danger">
+          Yes, Delete Document
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

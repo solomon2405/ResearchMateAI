@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Account Settings &mdash; ResearchMate AI{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 1rem auto;">
+  <div style="margin-bottom: 2rem;">
+    <h1 style="font-size: 1.8rem; font-weight: 800; color: var(--text-main);">Researcher Profile & Settings</h1>
+    <p style="color: var(--text-secondary); margin-top: 0.35rem;">Manage your researcher account details and workspace limits.</p>
+  </div>
+
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <span class="metric-label">Research Projects</span>
+      <span class="metric-value">{{ projects_count }}</span>
+      <span class="metric-hint">Isolated workspaces</span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-label">Uploaded Papers</span>
+      <span class="metric-value">{{ docs_count }}</span>
+      <span class="metric-hint">PDF documents</span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-label">Conversations</span>
+      <span class="metric-value">{{ convs_count }}</span>
+      <span class="metric-hint">Active RAG threads</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Account Details</h2>
+    </div>
+    <div style="display: grid; grid-template-columns: 180px 1fr; gap: 1rem; font-size: 0.95rem;">
+      <div style="font-weight: 600; color: var(--text-secondary);">Username:</div>
+      <div>{{ user.username }}</div>
+
+      <div style="font-weight: 600; color: var(--text-secondary);">Email:</div>
+      <div>{{ user.email|default:"Not specified" }}</div>
+
+      <div style="font-weight: 600; color: var(--text-secondary);">Member Since:</div>
+      <div>{{ user.date_joined|date:"F d, Y" }}</div>
+
+      <div style="font-weight: 600; color: var(--text-secondary);">Security & Isolation:</div>
+      <div><span class="badge badge-indexed">Active Private Boundary</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">System & Model Configuration</h2>
+    </div>
+    <div style="font-size: 0.925rem; color: var(--text-secondary); line-height: 1.8;">
+      <div>&bull; <strong>Embedding Architecture:</strong> Local SentenceTransformer (384-dimensional dense vectors)</div>
+      <div>&bull; <strong>Vector Index Backend:</strong> Project-isolated persistent FAISS (Cosine / Inner Product)</div>
+      <div>&bull; <strong>Storage Architecture:</strong> Authenticated private document storage (non-public media)</div>
+      <div>&bull; <strong>Literature Provider:</strong> OpenAlex Official REST API</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

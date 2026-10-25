@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+
+{% block title %}Research Dashboard &mdash; ResearchMate AI{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <h1 style="font-size: 2rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.02em;">
+      Welcome back, {{ user.username }}!
+    </h1>
+    <p style="color: var(--text-secondary); margin-top: 0.35rem; font-size: 1.05rem;">
+      Your personal academic research workspace for literature discovery and grounded multi-PDF RAG.
+    </p>
+  </div>
+  <div>
+    <a href="{% url 'project_create' %}" class="btn btn-primary btn-lg" id="btn-create-project">
+      + New Research Project
+    </a>
+  </div>
+</div>
+
+<!-- Prominent Academic Paper Search Field -->
+<div class="card" style="background: linear-gradient(135deg, #1e3a8a, #1e40af); color: white; padding: 2rem; margin-bottom: 2rem;">
+  <div style="max-width: 800px; margin: 0 auto; text-align: center;">
+    <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: white;">
+      Discover Academic Literature
+    </h2>
+    <p style="color: #bfdbfe; font-size: 0.95rem; margin-bottom: 1.5rem;">
+      Search millions of verified research papers via OpenAlex with genuine abstracts, citations, and source links.
+    </p>
+    <form action="{% url 'paper_search' %}" method="get" style="display: flex; gap: 0.6rem; max-width: 700px; margin: 0 auto;">
+      <input type="text" name="q" class="form-input" style="padding: 0.85rem 1.15rem; font-size: 1rem; border-radius: 8px; border: none;"
+             placeholder="Search topic (e.g. 'Transformer attention mechanisms for genomic sequence analysis')..." required>
+      <button type="submit" class="btn" style="background: #38bdf8; color: #0f172a; font-weight: 700; padding: 0 1.5rem; border-radius: 8px;">
+        Search
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Metrics Overview -->
+<div class="metrics-grid">
+  <div class="metric-card">
+    <span class="metric-label">Research Projects</span>
+    <span class="metric-value">{{ total_projects }}</span>
+    <span class="metric-hint">Active research workspaces</span>
+  </div>
+  <div class="metric-card">
+    <span class="metric-label">Total Documents</span>
+    <span class="metric-value">{{ total_documents }}</span>
+    <span class="metric-hint">Uploaded PDF papers</span>
+  </div>
+  <div class="metric-card">
+    <span class="metric-label">Indexed for RAG</span>
+    <span class="metric-value" style="color: var(--success);">{{ indexed_documents }}</span>
+    <span class="metric-hint">Ready for question-answering</span>
+  </div>
+  <div class="metric-card">
+    <span class="metric-label">Processing / Ingesting</span>
+    <span class="metric-value" style="color: var(--warning);">{{ processing_docs|length }}</span>
+    <span class="metric-hint">Currently extracting / embedding</span>
+  </div>
+</div>
+
+<!-- Ingestion Status Alert if documents are actively processing -->
+{% if processing_docs %}
+  <div class="card" style="border-left: 4px solid var(--warning); margin-bottom: 2rem;">
+    <div class="card-header" style="border: none; padding-bottom: 0.25rem;">
+      <h2 class="card-title" style="font-size: 1.1rem; color: #92400e; display: flex; align-items: center; gap: 0.5rem;">
+        ⏳ Documents Currently Being Indexed
+      </h2>
+    </div>
+    <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+      These documents are running through the PyMuPDF extraction, passage chunking, and vector embedding pipeline:
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+      {% for doc in processing_docs %}
+        <span class="badge badge-{{ doc.processing_status }}">
+          📄 {{ doc.original_filename }} &bull; {{ doc.get_processing_status_display }}
+        </span>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+<!-- Two-Column Layout: Recent Projects & Recent Chats -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem;">
+  
+  <!-- Recent Research Projects -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Recent Research Projects</h2>
+      <a href="{% url 'project_list' %}" style="font-size: 0.85rem; color: var(--primary); text-decoration: none; font-weight: 600;">
+        View All &rarr;
+      </a>
+    </div>
+
+    {% if recent_projects %}
+      <div style="display: flex; flex-direction: column; gap: 1rem;">
+        {% for p in recent_projects %}
+          <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <a href="{% url 'project_detail' pk=p.pk %}" style="font-weight: 700; color: var(--primary); text-decoration: none; font-size: 1.05rem;">
+                {{ p.name }}
+              </a>
+              <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                Topic: {{ p.research_topic }}
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
+                📚 {{ p.documents.count }} papers &bull; {{ p.conversations.count }} chats &bull; Updated {{ p.updated_at|timesince }} ago
+              </div>
+            </div>
+            <div>
+              <a href="{% url 'project_detail' pk=p.pk %}" class="btn btn-secondary btn-sm">
+                Open Workspace
+              </a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+        <p>No research projects yet.</p>
+        <a href="{% url 'project_create' %}" class="btn btn-primary btn-sm" style="margin-top: 0.75rem;">
+          Create Your First Project
+        </a>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Recent Research Conversations -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Recent Research Chats</h2>
+      <a href="{% url 'chat_main' %}" style="font-size: 0.85rem; color: var(--primary); text-decoration: none; font-weight: 600;">
+        Open Chats &rarr;
+      </a>
+    </div>
+
+    {% if recent_conversations %}
+      <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+        {% for conv in recent_conversations %}
+          <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.85rem 1rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="overflow: hidden; padding-right: 0.5rem;">
+              <a href="{% url 'chat_conversation' conversation_id=conv.id %}" style="font-weight: 600; color: var(--text-main); text-decoration: none; font-size: 0.95rem; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                💬 {{ conv.title }}
+              </a>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">
+                Project: {{ conv.project.name }} &bull; {{ conv.messages.count }} messages
+              </div>
+            </div>
+            <div>
+              <a href="{% url 'chat_conversation' conversation_id=conv.id %}" class="btn btn-secondary btn-sm">
+                Continue
+              </a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+        <p>No research conversations yet.</p>
+        <p style="font-size: 0.85rem; margin-top: 0.35rem;">
+          Create a project, upload papers, and launch a grounded chat session.
+        </p>
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

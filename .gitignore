@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Private Documents & Vector Indexes
+media/private_documents/*
+!media/private_documents/.gitkeep
+vector_indexes/*
+!vector_indexes/.gitkeep
+
+# Environment variables
+.env
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

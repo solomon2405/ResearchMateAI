@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+
+{% block title %}Academic Paper Discovery &mdash; ResearchMate AI{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 2rem;">
+  <h1 style="font-size: 2rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.02em;">
+    Academic Paper Discovery
+  </h1>
+  <p style="color: var(--text-secondary); margin-top: 0.25rem; font-size: 1.05rem;">
+    Search verified scholarly literature via OpenAlex. Inspect metadata, open publisher and repository records, and manually download PDFs to your research collections.
+  </p>
+</div>
+
+<!-- Search Form Card -->
+<div class="card" style="margin-bottom: 2rem;">
+  <form method="get" action="{% url 'paper_search' %}" id="searchForm">
+    <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 280px;">
+        {{ form.q }}
+        {% if form.q.errors %}
+          <div class="form-error">{{ form.q.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div>
+        <button type="submit" class="btn btn-primary" id="searchBtn" style="padding: 0.65rem 1.75rem; font-size: 1rem;">
+          🔍 Search Literature
+        </button>
+      </div>
+    </div>
+
+    <!-- Filters Row -->
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; font-size: 0.9rem;">
+      <div style="display: flex; align-items: center; gap: 0.4rem;">
+        <label for="id_start_year" style="font-weight: 600; color: var(--text-secondary);">From Year:</label>
+        <div style="width: 120px;">
+          {{ form.start_year }}
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 0.4rem;">
+        <label for="id_end_year" style="font-weight: 600; color: var(--text-secondary);">To Year:</label>
+        <div style="width: 120px;">
+          {{ form.end_year }}
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 0.4rem;">
+        <label for="id_sort_by" style="font-weight: 600; color: var(--text-secondary);">Sort By:</label>
+        <div style="width: 170px;">
+          {{ form.sort_by }}
+        </div>
+      </div>
+
+      {% if form.start_year.errors %}
+        <div class="form-error">{{ form.start_year.errors.0 }}</div>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Search Results Section -->
+{% if search_data %}
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+    <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text-main);">
+      Found {{ search_data.total_count }} academic paper(s) for "{{ query }}"
+    </h2>
+    <div style="font-size: 0.875rem; color: var(--text-muted);">
+      Page {{ search_data.page }} of {{ search_data.total_pages }} (10 per page)
+    </div>
+  </div>
+
+  {% if search_data.results %}
+    <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+      {% for paper in search_data.results %}
+        <div class="paper-card">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+            <h3 class="paper-title">
+              {{ paper.title }}
+            </h3>
+            <div>
+              {% if paper.is_oa %}
+                <span class="badge badge-indexed" title="Open Access Publication">
+                  🔓 Open Access
+                </span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="paper-meta">
+            <span><strong>Authors:</strong> {{ paper.authors_display }}</span>
+            <span>&bull;</span>
+            <span><strong>Year:</strong> {{ paper.publication_year }}</span>
+            <span>&bull;</span>
+            <span><strong>Venue:</strong> {{ paper.venue }}</span>
+            <span>&bull;</span>
+            <span><strong>Citations:</strong> {{ paper.citation_count }}</span>
+            <span>&bull;</span>
+            <span><strong>Provider:</strong> {{ paper.source_provider }}</span>
+          </div>
+
+          <div class="paper-abstract">
+            {{ paper.abstract }}
+          </div>
+
+          <!-- Direct Publisher / Source Links for Manual Download -->
+          <div class="paper-actions">
+            {% if paper.pdf_url %}
+              <a href="{{ paper.pdf_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">
+                📥 Open PDF Link
+              </a>
+            {% endif %}
+
+            {% if paper.landing_page_url %}
+              <a href="{{ paper.landing_page_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+                🔗 Publisher / Repository Record
+              </a>
+            {% endif %}
+
+            {% if paper.doi %}
+              <a href="{{ paper.doi }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+                🆔 DOI Link
+              </a>
+            {% endif %}
+
+            {% if user.is_authenticated and user_projects %}
+              <div style="margin-left: auto; display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">
+                <span>💡 <em>Download PDF, then upload to:</em></span>
+                <select class="form-select" style="width: auto; padding: 0.25rem 0.5rem; font-size: 0.8rem;" onchange="if(this.value) window.location.href='/documents/upload/' + this.value + '/';">
+                  <option value="">Select Project...</option>
+                  {% for p in user_projects %}
+                    <option value="{{ p.id }}">{{ p.name|truncatechars:25 }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Pagination Controls -->
+    {% if search_data.total_pages > 1 %}
+      <div style="display: flex; justify-content: center; align-items: center; gap: 0.75rem; margin-top: 2rem;">
+        {% if has_prev %}
+          <a href="?q={{ query|urlencode }}&start_year={{ form.start_year.value|default:'' }}&end_year={{ form.end_year.value|default:'' }}&sort_by={{ form.sort_by.value|default:'relevance' }}&page={{ prev_page }}"
+             class="btn btn-secondary btn-sm">
+            &larr; Previous Page
+          </a>
+        {% endif %}
+
+        <span style="font-size: 0.9rem; color: var(--text-secondary);">
+          Page {{ search_data.page }} of {{ search_data.total_pages }}
+        </span>
+
+        {% if has_next %}
+          <a href="?q={{ query|urlencode }}&start_year={{ form.start_year.value|default:'' }}&end_year={{ form.end_year.value|default:'' }}&sort_by={{ form.sort_by.value|default:'relevance' }}&page={{ next_page }}"
+             class="btn btn-secondary btn-sm">
+            Next Page &rarr;
+          </a>
+        {% endif %}
+      </div>
+    {% endif %}
+
+  {% else %}
+    <div class="card" style="text-align: center; padding: 3rem 1.5rem; color: var(--text-muted);">
+      <h3 style="font-size: 1.25rem; margin-bottom: 0.5rem;">No Papers Found</h3>
+      <p style="font-size: 0.95rem; max-width: 500px; margin: 0 auto;">
+        No academic literature matched your query or year range. Try broadening your keywords or removing publication year filters.
+      </p>
+    </div>
+  {% endif %}
+
+{% elif query %}
+  <!-- Loading or Waiting State -->
+  <div class="card" style="text-align: center; padding: 2rem;">
+    <p>Searching OpenAlex academic registry...</p>
+  </div>
+{% else %}
+  <!-- Search Landing Suggestions -->
+  <div class="card" style="padding: 2rem;">
+    <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-main);">
+      Suggested Research Topics to Explore:
+    </h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 0.6rem;">
+      <a href="?q=Machine+learning+approaches+for+early+kidney+disease+prediction" class="btn btn-secondary btn-sm">
+        Kidney Disease Prediction with ML
+      </a>
+      <a href="?q=Large+language+models+in+clinical+decision+support+systems" class="btn btn-secondary btn-sm">
+        LLMs in Clinical Decision Support
+      </a>
+      <a href="?q=Deep+residual+learning+for+image+recognition" class="btn btn-secondary btn-sm">
+        Deep Residual Learning
+      </a>
+      <a href="?q=Retrieval-Augmented+Generation+for+scientific+literature+qa" class="btn btn-secondary btn-sm">
+        RAG for Scientific Literature QA
+      </a>
+      <a href="?q=Graph+neural+networks+for+molecular+property+prediction" class="btn btn-secondary btn-sm">
+        Graph Neural Networks for Chemistry
+      </a>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

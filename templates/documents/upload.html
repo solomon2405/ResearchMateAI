@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload Papers &mdash; {{ project.name }} &mdash; ResearchMate AI{% endblock %}
+
+{% block content %}
+<div style="max-width: 700px; margin: 1.5rem auto;">
+  <div style="margin-bottom: 1.5rem;">
+    <a href="{% url 'project_detail' pk=project.pk %}" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">
+      &larr; Back to {{ project.name }}
+    </a>
+    <h1 style="font-size: 1.8rem; font-weight: 800; color: var(--text-main); margin-top: 0.5rem;">
+      Upload Research Papers (PDF)
+    </h1>
+    <p style="color: var(--text-secondary); margin-top: 0.25rem;">
+      Upload literature to <strong>{{ project.name }}</strong>. Documents will be parsed with PyMuPDF, chunked into passages, embedded locally, and indexed into your project's private vector collection.
+    </p>
+  </div>
+
+  <div class="card">
+    <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1.5rem; font-size: 0.875rem; color: var(--text-secondary);">
+      <div>&bull; <strong>Maximum quota:</strong> 30 research papers per workspace (current: {{ project.documents.count }}/30).</div>
+      <div>&bull; <strong>Allowed format:</strong> Text-based PDF documents (max 25 MB per paper).</div>
+      <div>&bull; <strong>Integrity check:</strong> Empty, password-protected, or image-only scanned PDFs requiring OCR will be flagged.</div>
+      <div>&bull; <strong>Storage Privacy:</strong> Private file storage with authenticated access control.</div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" id="uploadForm">
+      {% csrf_token %}
+
+      <div class="form-group">
+        <label for="id_files" class="form-label" style="font-size: 1rem;">
+          Select PDF Papers (Multi-select supported)
+        </label>
+        {{ form.files }}
+        <div class="form-help">{{ form.files.help_text }}</div>
+        {% if form.files.errors %}
+          <div class="form-error" style="font-size: 0.9rem;">
+            {{ form.files.errors.0 }}
+          </div>
+        {% endif %}
+      </div>
+
+      <div id="filePreviewList" style="margin-bottom: 1.5rem; display: none;">
+        <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.5rem;">
+          Selected Files to Upload:
+        </div>
+        <ul id="fileNamesContainer" style="list-style: none; font-size: 0.875rem; color: var(--text-main); display: flex; flex-direction: column; gap: 0.35rem;">
+        </ul>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+        <a href="{% url 'project_detail' pk=project.pk %}" class="btn btn-secondary">
+          Cancel
+        </a>
+        <button type="submit" class="btn btn-primary btn-lg" id="submitUploadBtn">
+          Upload & Index Papers
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.querySelector('input[type="file"]');
+    const previewList = document.getElementById('filePreviewList');
+    const namesContainer = document.getElementById('fileNamesContainer');
+    const submitBtn = document.getElementById('submitUploadBtn');
+    const uploadForm = document.getElementById('uploadForm');
+
+    if (fileInput) {
+      fileInput.addEventListener('change', function() {
+        namesContainer.innerHTML = '';
+        if (this.files.length > 0) {
+          previewList.style.display = 'block';
+          Array.from(this.files).forEach(file => {
+            const li = document.createElement('li');
+            li.style.padding = '0.35rem 0.6rem';
+            li.style.background = '#f1f5f9';
+            li.style.borderRadius = '4px';
+            li.innerHTML = `📄 <strong>${file.name}</strong> (${(file.size / (1024*1024)).toFixed(2)} MB)`;
+            namesContainer.appendChild(li);
+          });
+        } else {
+          previewList.style.display = 'none';
+        }
+      });
+    }
+
+    if (uploadForm) {
+      uploadForm.addEventListener('submit', function() {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `⏳ Uploading & Indexing...`;
+      });
+    }
+  });
+</script>
+{% endblock %}

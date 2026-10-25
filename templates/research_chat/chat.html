@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  {% if active_conversation %}{{ active_conversation.title }} &mdash; {% endif %}Research Chat &mdash; ResearchMate AI
+{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+
+  <!-- Left Sidebar: Conversations List -->
+  <aside class="chat-sidebar">
+    <div class="sidebar-header">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+        <span style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">
+          Research Chats
+        </span>
+        {% if active_project %}
+          <a href="{% url 'chat_create_conversation' project_id=active_project.id %}" class="btn btn-primary btn-sm" id="sidebar-new-chat-btn" title="Start new conversation in {{ active_project.name }}">
+            + New Chat
+          </a>
+        {% endif %}
+      </div>
+
+      <!-- Active Project Selector -->
+      {% if user_projects %}
+        <div style="font-size: 0.8rem; color: var(--text-muted);">
+          <label for="projectSelector" style="display: block; margin-bottom: 0.25rem; font-weight: 600;">Active Workspace:</label>
+          <select id="projectSelector" class="form-select" style="font-size: 0.825rem; padding: 0.35rem 0.5rem;" onchange="if(this.value) window.location.href='/chat/new/' + this.value + '/';">
+            {% for p in user_projects %}
+              <option value="{{ p.id }}" {% if active_project and p.id == active_project.id %}selected{% endif %}>
+                📁 {{ p.name|truncatechars:28 }} ({{ p.documents.count }} papers)
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Conversations Thread List -->
+    <ul class="conv-list">
+      {% if user_conversations %}
+        {% for conv in user_conversations %}
+          <li class="conv-item {% if active_conversation and conv.id == active_conversation.id %}active{% endif %}">
+            <a href="{% url 'chat_conversation' conversation_id=conv.id %}" class="conv-title" title="{{ conv.title }}">
+              💬 {{ conv.title }}
+            </a>
+            <span class="conv-meta">{{ conv.messages.count }}</span>
+          </li>
+        {% endfor %}
+      {% else %}
+        <li style="padding: 1.5rem 0.75rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+          No conversations yet. Choose a project above to start chatting.
+        </li>
+      {% endif %}
+    </ul>
+
+    {% if active_project %}
+      <div style="padding: 0.75rem 1rem; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--text-secondary); background: var(--surface-subtle);">
+        <a href="{% url 'project_detail' pk=active_project.pk %}" style="color: var(--primary); font-weight: 600; text-decoration: none;">
+          &larr; View {{ active_project.name }}
+        </a>
+      </div>
+    {% endif %}
+  </aside>
+
+  <!-- Right Main Area: Chat Window -->
+  <section class="chat-main">
+    
+    {% if active_conversation %}
+      <!-- Chat Header -->
+      <div class="chat-header">
+        <div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <h1 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main); margin: 0;">
+              {{ active_conversation.title }}
+            </h1>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.2rem;">
+            Grounded in: <strong>{{ active_project.name }}</strong> ({{ active_project.indexed_document_count }} of {{ active_project.document_count }} papers indexed)
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <!-- Rename Modal Trigger -->
+          <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('renameModal').style.display='flex';" title="Rename Chat">
+            ✏️ Rename
+          </button>
+          <!-- Delete Chat -->
+          <form action="{% url 'chat_delete' conversation_id=active_conversation.id %}" method="post" onsubmit="return confirm('Delete this research chat conversation?');" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary btn-sm" style="color: var(--danger);" title="Delete Chat">
+              🗑️
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Messages Thread Area -->
+      <div class="chat-messages" id="chatMessages">
+        {% if messages_list %}
+          {% for msg in messages_list %}
+            <div class="message-bubble message-{{ msg.role }}">
+              <div class="message-role-label">
+                {% if msg.role == 'user' %}You{% else %}ResearchMate AI{% endif %}
+              </div>
+              <div style="white-space: pre-wrap;">{{ msg.content }}</div>
+
+              <!-- Citations Tray for Assistant Message -->
+              {% if msg.role == 'assistant' and msg.sources.all %}
+                <div class="citations-container">
+                  <div class="citations-header">
+                    <span>📑 Grounded Citations ({{ msg.sources.count }})</span>
+                  </div>
+                  <div class="citation-chips">
+                    {% for source in msg.sources.all %}
+                      <a href="{% url 'document_serve' pk=source.document.id %}#page={{ source.page_reference|slice:':2' }}"
+                         target="_blank" rel="noopener noreferrer"
+                         class="citation-chip"
+                         title="Excerpt: {{ source.excerpt }}">
+                        <span>📄 [Source {{ forloop.counter }}] {{ source.document.original_filename }} (p. {{ source.page_reference }})</span>
+                      </a>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        {% else %}
+          <!-- Empty State Greeting -->
+          <div style="text-align: center; margin: auto; max-width: 550px; padding: 2rem;">
+            <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">📚</div>
+            <h2 style="font-size: 1.35rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">
+              Ask ResearchMate AI
+            </h2>
+            <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6; margin-bottom: 1.5rem;">
+              Ask questions across the <strong>{{ active_project.indexed_document_count }} indexed papers</strong> in this workspace. Answers are generated using strict evidence grounding with verifiable page citations.
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; text-align: left; font-size: 0.875rem;">
+              <div style="padding: 0.6rem 0.85rem; background: var(--surface-muted); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                💡 <em>"Summarize the primary methodologies and baseline models evaluated across the papers."</em>
+              </div>
+              <div style="padding: 0.6rem 0.85rem; background: var(--surface-muted); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                💡 <em>"Compare the experimental results and performance metrics reported in these studies."</em>
+              </div>
+              <div style="padding: 0.6rem 0.85rem; background: var(--surface-muted); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                💡 <em>"What limitations or future directions do the authors explicitly discuss?"</em>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Chat Input Area -->
+      <div class="chat-input-area">
+        <form id="chatForm" data-conversation-id="{{ active_conversation.id }}" class="chat-form">
+          {% csrf_token %}
+          <textarea
+            id="chatInput"
+            class="chat-textarea"
+            rows="2"
+            placeholder="Ask a question about the uploaded papers in {{ active_project.name }} (Press Enter to send, Shift+Enter for newline)..."
+            required></textarea>
+          <button type="submit" class="btn btn-primary" id="sendBtn" style="padding: 0 1.5rem; align-self: flex-end; height: 50px;">
+            Send
+          </button>
+        </form>
+      </div>
+
+      <!-- Rename Conversation Modal -->
+      <div id="renameModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center;">
+        <div class="card" style="width: 400px; padding: 1.5rem; box-shadow: var(--shadow-lg);">
+          <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 1rem;">Rename Conversation</h3>
+          <form action="{% url 'chat_rename' conversation_id=active_conversation.id %}" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+              <input type="text" name="title" value="{{ active_conversation.title }}" class="form-input" required maxlength="200">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('renameModal').style.display='none';">Cancel</button>
+              <button type="submit" class="btn btn-primary btn-sm">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    {% elif active_project %}
+      <!-- Has project but no conversation chosen -->
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 2rem; text-align: center;">
+        <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">📁</div>
+        <h2 style="font-size: 1.35rem; font-weight: 700;">{{ active_project.name }}</h2>
+        <p style="color: var(--text-secondary); max-width: 450px; margin: 0.5rem 0 1.5rem 0;">
+          Start a new chat conversation to ask evidence-grounded questions about your {{ active_project.documents.count }} uploaded documents.
+        </p>
+        <a href="{% url 'chat_create_conversation' project_id=active_project.id %}" class="btn btn-primary btn-lg">
+          + Start New Research Chat
+        </a>
+      </div>
+
+    {% else %}
+      <!-- No Projects Created Yet -->
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 2rem; text-align: center;">
+        <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🚀</div>
+        <h2 style="font-size: 1.35rem; font-weight: 700;">No Research Workspace Active</h2>
+        <p style="color: var(--text-secondary); max-width: 450px; margin: 0.5rem 0 1.5rem 0;">
+          Create a research project and upload PDF papers to unlock grounded RAG answering.
+        </p>
+        <a href="{% url 'project_create' %}" class="btn btn-primary btn-lg">
+          Create Research Project
+        </a>
+      </div>
+    {% endif %}
+
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script src="{% static 'js/chat.js' %}"></script>
+{% endblock %}

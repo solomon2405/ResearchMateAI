@@ -1,0 +1,1 @@
+# ResearchMate AI Django Configuration
