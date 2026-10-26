@@ -47,6 +47,7 @@ Research project/
 │
 ├── .env                                  # Active environment configuration
 ├── .env.example                          # Documented environment variable template
+├── .gitattributes                        # Git LFS tracking rules (*.mp4 filter=lfs)
 ├── .gitignore                            # Git exclusion rules for secrets, DB, and media
 ├── db.sqlite3                            # Local development SQLite database
 ├── FOLDER_STRUCTURE.txt                  # Directory structure reference file
@@ -55,6 +56,7 @@ Research project/
 ├── manage.py                             # Django CLI management entrypoint
 ├── README.md                             # Comprehensive project documentation & guide
 ├── requirements.txt                      # Python dependencies manifest
+├── ResearchMateAI.mp4                    # Presentation & demo walkthrough video (Git LFS)
 │
 ├── config/                               # Core Django Project Configuration
 │   ├── __init__.py                       # Package identifier
@@ -181,6 +183,10 @@ Research project/
   environment variables used across the application. Developers copy this to
   .env when bootstrapping a new environment.
 
+.gitattributes
+  Configures Git LFS (Large File Storage) tracking rules to manage large binary
+  assets (such as *.mp4 presentation videos) outside standard Git commit blobs.
+
 .gitignore
   Configures Git exclusions to prevent committing sensitive artifacts, including
   the SQLite database (db.sqlite3), uploaded private PDFs (media/private_documents/),
@@ -220,6 +226,12 @@ requirements.txt
   - faiss-cpu (vector similarity search engine)
   - httpx (asynchronous/synchronous HTTP client for OpenAlex API)
   - python-dotenv (environment variable loader)
+
+ResearchMateAI.mp4
+  Complete project demonstration and architecture walkthrough video for recruiters
+  and evaluators. Showcases end-to-end user workflows, OpenAlex discovery,
+  PyMuPDF document ingestion, isolated FAISS vector search, and evidence-grounded
+  conversations with clickable citations. Tracked with Git LFS.
 
 
 ================================================================================

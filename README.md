@@ -6,11 +6,25 @@
 [![Vector Engine](https://img.shields.io/badge/FAISS-CPU_1.15-purple.svg)](https://github.com/facebookresearch/faiss)
 [![Embeddings](https://img.shields.io/badge/Sentence--Transformers-all--MiniLM--L6--v2-orange.svg)](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
 [![Tests](https://img.shields.io/badge/Test_Suite-35_Passing-brightgreen.svg)](#-automated-testing-and-verification)
+[![Presentation Video](https://img.shields.io/badge/🎬_Demo-Presentation_Video-red.svg?style=flat)](https://drive.google.com/file/d/1TBIBpIS2RlrXfCjPNFeXQEP0oQplK4f6/view?usp=sharing)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)](LICENSE)
 
 ---
 
+## 🎬 Presentation Video & System Walkthrough
+
+> **For Recruiters & Evaluators:** A complete video presentation and end-to-end walkthrough demonstrating ResearchMate AI's live academic discovery, multi-PDF semantic ingestion, isolated FAISS vector retrieval, and evidence-grounded chat with clickable citations.
+
+| Resource | Direct Link | Description |
+|---|---|---|
+| 🎥 **Live Video Stream** | [▶️ **Watch Presentation Video (Instant HD Stream)**](https://drive.google.com/file/d/1TBIBpIS2RlrXfCjPNFeXQEP0oQplK4f6/view?usp=sharing) | High-definition in-browser playback (no download required) |
+| 📁 **Google Drive Folder** | [📂 Open Drive Folder](https://drive.google.com/drive/folders/1RpnsOS5iGvsLbkPEaWUs2DbqsrX-dEHq?usp=sharing) | Presentation drive directory with source video and materials |
+| 📦 **Repository Video File** | [`ResearchMateAI.mp4`](./ResearchMateAI.mp4) | In-repository binary tracked via Git LFS (149.4 MB) |
+
+---
+
 ## 📑 Table of Contents
+0. [Presentation Video & System Walkthrough](#-presentation-video--system-walkthrough)
 1. [Problem Statement](#-problem-statement)
 2. [The Solution: ResearchMate AI](#-the-solution-researchmate-ai)
 3. [Core Capabilities & Workflows](#-core-capabilities--workflows)
