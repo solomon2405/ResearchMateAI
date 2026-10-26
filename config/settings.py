@@ -159,7 +159,7 @@ OPENALEX_API_URL = 'https://api.openalex.org/works'
 EMBEDDING_MODEL_NAME = os.getenv('EMBEDDING_MODEL_NAME', 'all-MiniLM-L6-v2')
 VECTOR_STORE_BACKEND = os.getenv('VECTOR_STORE_BACKEND', 'faiss')
 RAG_TOP_K = int(os.getenv('RAG_TOP_K', 5))
-RAG_SIMILARITY_THRESHOLD = float(os.getenv('RAG_SIMILARITY_THRESHOLD', 0.35))
+RAG_SIMILARITY_THRESHOLD = float(os.getenv('RAG_SIMILARITY_THRESHOLD', 0.20))
 RAG_MAX_CONTEXT_TOKENS = int(os.getenv('RAG_MAX_CONTEXT_TOKENS', 3000))
 
 # LLM Answer Generation

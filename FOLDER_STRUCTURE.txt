@@ -1,0 +1,741 @@
+================================================================================
+RESEARCHMATE AI — PROJECT FOLDER & DIRECTORY STRUCTURE EXPLANATION
+Academic Literature Discovery & Evidence-Grounded Multi-PDF RAG Platform
+================================================================================
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1.  PROJECT OVERVIEW & TECHNOLOGY STACK
+2.  COMPLETE VISUAL DIRECTORY TREE
+3.  ROOT DIRECTORY FILES
+4.  CORE CONFIGURATION (config/)
+5.  USER AUTHENTICATION APP (accounts/)
+6.  RESEARCH WORKSPACE APP (research_projects/)
+7.  ACADEMIC LITERATURE DISCOVERY APP (paper_discovery/)
+8.  PDF INGESTION & PRIVATE STORAGE APP (documents/)
+9.  RAG PIPELINE, VECTOR SEARCH & CHAT APP (research_chat/)
+10. FRONTEND TEMPLATES (templates/)
+11. CLIENT STATIC ASSETS (static/)
+12. SECURE MEDIA STORAGE (media/)
+13. PERSISTENT FAISS VECTOR INDEXES (vector_indexes/)
+14. END-TO-END DATA FLOW PIPELINES
+15. MULTI-USER ISOLATION & SECURITY BOUNDARIES
+
+
+================================================================================
+1. PROJECT OVERVIEW & TECHNOLOGY STACK
+================================================================================
+ResearchMate AI is a production-grade academic research platform built with
+Django. It combines live scholarly discovery via the OpenAlex API with a
+strictly grounded, multi-PDF Retrieval-Augmented Generation (RAG) assistant.
+
+Core Technology Stack:
+- Web Framework: Django 6.1 (Python 3.12+)
+- Document Parser: PyMuPDF (fitz) for PDF text & metadata extraction
+- Embeddings: Sentence-Transformers (all-MiniLM-L6-v2, 384-dimensional dense vectors)
+- Vector Store: FAISS (Facebook AI Similarity Search - IndexFlatIP, Inner Product)
+- Discovery Source: OpenAlex Works REST API with polite pool integration
+- Synthesis Engine: Configurable LLM adapter (Deterministic Mock, Ollama, OpenAI-compatible)
+- Database: SQLite (development) / PostgreSQL (production-ready ORM)
+
+
+================================================================================
+2. COMPLETE VISUAL DIRECTORY TREE
+================================================================================
+Research project/
+│
+├── .env                                  # Active environment configuration
+├── .env.example                          # Documented environment variable template
+├── .gitignore                            # Git exclusion rules for secrets, DB, and media
+├── db.sqlite3                            # Local development SQLite database
+├── FOLDER_STRUCTURE.txt                  # Directory structure reference file
+├── folder_structure_explanation.txt      # This detailed folder structure documentation
+├── IMPLEMENTATION.md                     # Technical architecture & algorithmic spec
+├── manage.py                             # Django CLI management entrypoint
+├── README.md                             # Comprehensive project documentation & guide
+├── requirements.txt                      # Python dependencies manifest
+│
+├── config/                               # Core Django Project Configuration
+│   ├── __init__.py                       # Package identifier
+│   ├── asgi.py                           # ASGI entrypoint for async capabilities
+│   ├── settings.py                       # Project configuration, apps, RAG & FAISS settings
+│   ├── urls.py                           # Root URL router & protected media routes
+│   └── wsgi.py                           # WSGI entrypoint for synchronous web servers
+│
+├── accounts/                             # Authentication & User Management App
+│   ├── __init__.py                       # Package identifier
+│   ├── apps.py                           # AccountsConfig app definition
+│   ├── forms.py                          # RegisterForm & LoginForm with custom validators
+│   ├── models.py                         # User models & profile preference hooks
+│   ├── tests.py                          # Auth, registration, and session unit tests
+│   ├── urls.py                           # Authentication routes (/accounts/login, etc.)
+│   ├── views.py                          # Views for register, login, logout, and profile
+│   └── migrations/                       # Database schema migrations for accounts
+│       └── __init__.py
+│
+├── research_projects/                    # Research Workspace Management App
+│   ├── __init__.py                       # Package identifier
+│   ├── apps.py                           # ResearchProjectsConfig app definition
+│   ├── forms.py                          # ResearchProjectForm (name, topic, description)
+│   ├── models.py                         # ResearchProject model (isolated user workspaces)
+│   ├── tests.py                          # Workspace CRUD & multi-user isolation tests
+│   ├── urls.py                           # Workspace routing (/, /projects/, etc.)
+│   ├── views.py                          # Dashboard, project list, detail, edit, delete
+│   └── migrations/                       # Database schema migrations for research_projects
+│       ├── 0001_initial.py
+│       └── __init__.py
+│
+├── paper_discovery/                      # Academic Literature Discovery App
+│   ├── __init__.py                       # Package identifier
+│   ├── apps.py                           # PaperDiscoveryConfig app definition
+│   ├── forms.py                          # PaperSearchForm (query, year range, sort)
+│   ├── models.py                         # Models for bookmarked literature & queries
+│   ├── tests.py                          # Tests for normalizers, OpenAlex queries, timeouts
+│   ├── urls.py                           # Discovery routing (/discovery/)
+│   ├── views.py                          # search_view controller for literature queries
+│   └── services/                         # Service layer for external OpenAlex communication
+│       ├── normalizers.py                # Inverted index abstract reconstruction & formatting
+│       └── openalex.py                   # Polite-pool OpenAlex Works API client adapter
+│
+├── documents/                            # PDF Ingestion, Parsing & Private Storage App
+│   ├── __init__.py                       # Package identifier
+│   ├── apps.py                           # DocumentsConfig app definition
+│   ├── forms.py                          # DocumentUploadForm (multi-file, MIME/magic check)
+│   ├── models.py                         # ResearchDocument & DocumentChunk ORM models
+│   ├── tests.py                          # PDF extraction, chunking, OCR & security tests
+│   ├── urls.py                           # Upload, view, retry, and deletion endpoints
+│   ├── views.py                          # Upload, private PDF streaming, delete, retry
+│   ├── migrations/                       # Database schema migrations for documents
+│   │   ├── 0001_initial.py
+│   │   └── __init__.py
+│   └── services/                         # Algorithmic document processing pipeline
+│       ├── chunker.py                    # Semantic overlapping passage chunker (500-800 words)
+│       ├── ingestion.py                  # End-to-end ingestion orchestrator
+│       └── pdf_extractor.py              # PyMuPDF text extractor & scanned document detector
+│
+├── research_chat/                        # Vector Search & RAG Chat App
+│   ├── __init__.py                       # Package identifier
+│   ├── apps.py                           # ResearchChatConfig app definition
+│   ├── models.py                         # ChatConversation, ChatMessage, MessageSource models
+│   ├── tests.py                          # Retrieval, FAISS isolation, and citation tests
+│   ├── urls.py                           # Chat interfaces and asynchronous JSON endpoints
+│   ├── views.py                          # chat_view, create, send_message_api, rename, delete
+│   ├── migrations/                       # Database schema migrations for research_chat
+│   │   ├── 0001_initial.py
+│   │   └── __init__.py
+│   └── services/                         # Core RAG algorithmic & vector store services
+│       ├── answer_generator.py           # Strictly grounded LLM generation backends
+│       ├── citation_validator.py         # Grounding & citation verifier against real chunks
+│       ├── embeddings.py                 # SentenceTransformer local vector embedding singleton
+│       ├── rag_pipeline.py               # Complete RAG query coordinator (query -> retrieval -> answer)
+│       ├── retriever.py                  # Cosine similarity vector search & threshold filter
+│       └── vector_store.py               # Project-isolated FAISS IndexFlatIP vector engine
+│
+├── templates/                            # Django HTML5 Presentation Templates
+│   ├── base.html                         # Master layout with navigation, alerts, and modals
+│   ├── accounts/                         # User authentication templates
+│   │   ├── login.html                    # User sign-in interface
+│   │   ├── profile.html                  # User account statistics & settings
+│   │   └── register.html                 # New user registration interface
+│   ├── documents/                        # Document management templates
+│   │   ├── document_confirm_delete.html  # Document removal confirmation
+│   │   └── upload.html                   # Multi-PDF drag-and-drop upload zone
+│   ├── paper_discovery/                  # Literature search templates
+│   │   └── search.html                   # Search bar, filters, paper cards, external links
+│   ├── research_chat/                    # Conversational RAG templates
+│   │   └── chat.html                     # ChatGPT-style split layout with sidebar & citations
+│   └── research_projects/                # Workspace management templates
+│       ├── dashboard.html                # Main researcher cockpit & database statistics
+│       ├── project_confirm_delete.html   # Workspace deletion confirmation dialog
+│       ├── project_detail.html           # Project cockpit (documents, chats, ingestion badges)
+│       ├── project_form.html             # Project create & edit form
+│       └── project_list.html             # Grid view of all user workspaces
+│
+├── static/                               # Static UI Assets
+│   ├── css/
+│   │   └── main.css                      # Academic theme (slate/indigo palette, cards, badges)
+│   └── js/
+│       └── chat.js                       # Vanilla JS for async chat dispatch & citation jumping
+│
+├── media/                                # Uploaded Binary Storage (Restricted)
+│   └── private_documents/                # Protected research PDFs partitioned by YYYY/MM/
+│       └── 2026/
+│           └── 10/                       # Active uploaded PDFs with randomized secure names
+│
+└── vector_indexes/                       # FAISS Vector Index Directory
+    ├── project_<id>.index                # Binary FAISS IndexFlatIP file per workspace
+    └── project_<id>_chunks.json          # Mapping between FAISS integer IDs and DocumentChunk PKs
+
+
+================================================================================
+3. ROOT DIRECTORY FILES
+================================================================================
+.env
+  Contains active local configuration and secret keys (DEBUG mode, SECRET_KEY,
+  OpenAlex mailto email, LLM provider selection, FAISS vector index parameters).
+  Must never be committed to public version control.
+
+.env.example
+  A safe, fully commented template illustrating all required and optional
+  environment variables used across the application. Developers copy this to
+  .env when bootstrapping a new environment.
+
+.gitignore
+  Configures Git exclusions to prevent committing sensitive artifacts, including
+  the SQLite database (db.sqlite3), uploaded private PDFs (media/private_documents/),
+  compiled vector indexes (vector_indexes/), Python bytecode (__pycache__), and
+  virtual environment directories (.venv/, venv/).
+
+db.sqlite3
+  The default local SQLite relational database file for development. It houses
+  all relational tables (users, projects, documents, chunks, conversations,
+  messages, and sources). In production, settings.py can switch to PostgreSQL.
+
+FOLDER_STRUCTURE.txt & folder_structure_explanation.txt
+  Comprehensive plain-text references explaining every directory, file, model,
+  service, and data flow path across the ResearchMate AI codebase.
+
+IMPLEMENTATION.md
+  Detailed technical documentation describing the complete system architecture,
+  relational schemas, algorithmic processing pipelines (PDF extraction,
+  sliding-window chunking, vector indexing, similarity thresholding, citation
+  grounding), security boundaries, and code inventory.
+
+manage.py
+  Standard Django CLI executable used for database migrations (makemigrations,
+  migrate), starting the development server (runserver), executing test suites
+  (test), and running administrative commands.
+
+README.md
+  Comprehensive project documentation providing the problem statement, system
+  solution, feature list, architecture diagrams, installation instructions,
+  configuration guide, and verification steps.
+
+requirements.txt
+  Specifies exact Python library dependencies:
+  - Django >= 5.0 (core web framework)
+  - pymupdf (PyMuPDF / fitz for fast, high-fidelity PDF extraction)
+  - sentence-transformers (local dense vector embeddings)
+  - faiss-cpu (vector similarity search engine)
+  - httpx (asynchronous/synchronous HTTP client for OpenAlex API)
+  - python-dotenv (environment variable loader)
+
+
+================================================================================
+4. CORE CONFIGURATION (config/)
+================================================================================
+config/
+  The primary Django configuration module that bootstraps the entire platform.
+
+config/__init__.py
+  Declares the directory as a Python package.
+
+config/settings.py
+  Centralized settings file. Key configurations include:
+  - BASE_DIR: Resolves root repository paths.
+  - INSTALLED_APPS: Registers Django contrib modules and the 5 custom apps:
+    'accounts', 'research_projects', 'paper_discovery', 'documents', 'research_chat'.
+  - MIDDLEWARE: Configures security, session, CSRF, and authentication layers.
+  - TEMPLATES: Points to the root templates/ folder with app-level template discovery.
+  - DATABASES: Configures SQLite database engine and file paths.
+  - MEDIA_ROOT & PRIVATE_MEDIA_ROOT: Configures protected private document storage
+    at media/private_documents/ to prevent direct unauthenticated downloads.
+  - VECTOR_INDEX_DIR: Sets the storage directory for persistent FAISS index files.
+  - RAG Configuration:
+    * EMBEDDING_MODEL_NAME: 'all-MiniLM-L6-v2' (384-dimensional dense vectors)
+    * VECTOR_STORE_BACKEND: 'faiss'
+    * RAG_TOP_K: Maximum candidate passages to retrieve (default: 5)
+    * RAG_SIMILARITY_THRESHOLD: Cosine similarity cutoff (default: 0.20)
+    * RAG_MAX_CONTEXT_TOKENS: Context window budget (default: 3000 tokens)
+    * LLM_PROVIDER: 'mock', 'ollama', or 'openai_compatible'
+    * MAX_DOCUMENTS_PER_PROJECT: Maximum PDFs allowed per workspace (default: 30)
+    * MAX_UPLOAD_SIZE_MB: Maximum PDF file size in MB (default: 25)
+
+config/urls.py
+  Master URL routing configuration that delegates URL prefixes to app routers:
+  - '' -> research_projects.urls (dashboard and workspaces)
+  - 'accounts/' -> accounts.urls (authentication)
+  - 'discovery/' -> paper_discovery.urls (academic search)
+  - 'documents/' -> documents.urls (PDF upload and streaming)
+  - 'chat/' -> research_chat.urls (RAG chat interface and JSON APIs)
+
+config/wsgi.py
+  WSGI (Web Server Gateway Interface) entrypoint used for deploying synchronous
+  production application servers such as Gunicorn or uWSGI.
+
+config/asgi.py
+  ASGI (Asynchronous Server Gateway Interface) entrypoint enabling async features
+  and future WebSocket connections.
+
+
+================================================================================
+5. USER AUTHENTICATION APP (accounts/)
+================================================================================
+accounts/
+  Manages user registration, secure session authentication, and researcher profiles.
+
+accounts/apps.py
+  Defines AccountsConfig (name = 'accounts').
+
+accounts/models.py
+  Integrates with Django's built-in User model (`django.contrib.auth.models.User`).
+  Provides extensible foundation for researcher preferences and API keys.
+
+accounts/forms.py
+  - RegisterForm: Handles new user registration with username uniqueness checks,
+    email validation, password confirmation matching, and Bootstrap input styling.
+  - LoginForm: Handles user authentication credentials with clean error reporting.
+
+accounts/views.py
+  - register_view: Validates registration form, creates user account, logs the
+    user in automatically, and redirects to dashboard.
+  - login_view: Validates user credentials, initializes session, and redirects.
+  - logout_view: Flushes user session and redirects to login.
+  - profile_view: Displays researcher account metadata, total workspaces,
+    total documents, and active embedding/LLM configuration.
+
+accounts/urls.py
+  Maps routes:
+  - /accounts/register/ [name='register']
+  - /accounts/login/    [name='login']
+  - /accounts/logout/   [name='logout']
+  - /accounts/profile/  [name='profile']
+
+accounts/tests.py
+  Unit tests covering user registration, invalid duplicate usernames, authentication
+  enforcement on protected views, and password hashing security.
+
+
+================================================================================
+6. RESEARCH WORKSPACE APP (research_projects/)
+================================================================================
+research_projects/
+  Enforces isolated workspace boundaries. Every project acts as an independent
+  silo containing its own research topic, documents, chunks, FAISS vector index,
+  and chat conversation threads.
+
+research_projects/apps.py
+  Defines ResearchProjectsConfig (name = 'research_projects').
+
+research_projects/models.py
+  - ResearchProject:
+    * owner: ForeignKey -> User (CASCADE deletion).
+    * name: CharField (project title, e.g., "Kidney Disease Biomarkers").
+    * research_topic: CharField (core scientific query or domain).
+    * description: TextField (background, methodology, notes).
+    * created_at, updated_at: DateTimeField timestamps.
+    * Properties: document_count, indexed_document_count.
+
+research_projects/forms.py
+  - ResearchProjectForm: ModelForm for creating and editing projects with
+    validation for title and research topic.
+
+research_projects/views.py
+  - dashboard_view: Displays aggregate metrics (total projects, total documents,
+    indexed chunks) and recent projects for the logged-in user.
+  - project_list: Displays all research workspaces owned by the user.
+  - project_create: Handles creation of a new research workspace.
+  - project_detail: The main workspace cockpit. Lists all attached research
+    papers, their ingestion statuses, total pages, and active chat threads.
+  - project_update: Allows editing workspace title, topic, and description.
+  - project_delete: Deletes a workspace along with cascading removal of attached
+    documents, chunks, chat history, and its on-disk FAISS index.
+
+research_projects/urls.py
+  Maps routes:
+  - /                         [name='dashboard']
+  - /projects/                [name='project_list']
+  - /projects/create/         [name='project_create']
+  - /projects/<id>/           [name='project_detail']
+  - /projects/<id>/edit/      [name='project_update']
+  - /projects/<id>/delete/    [name='project_delete']
+
+research_projects/tests.py
+  Tests verifying workspace CRUD operations and multi-tenant security (ensuring
+  User A cannot view, edit, or delete User B's research workspaces).
+
+
+================================================================================
+7. ACADEMIC LITERATURE DISCOVERY APP (paper_discovery/)
+================================================================================
+paper_discovery/
+  Integrates with the OpenAlex API to search hundreds of millions of scholarly
+  works, reconstruct inverted-index abstracts, and provide direct links to open-
+  access PDFs and publisher DOIs.
+
+paper_discovery/apps.py
+  Defines PaperDiscoveryConfig (name = 'paper_discovery').
+
+paper_discovery/models.py
+  Provides foundations for bookmarked literature and saved search queries.
+
+paper_discovery/forms.py
+  - PaperSearchForm: Form containing fields for search query (keywords/title/DOI),
+    minimum publication year, maximum publication year, and sorting criteria
+    (relevance_score:desc, cited_by_count:desc, publication_date:desc).
+
+paper_discovery/services/openalex.py
+  - OpenAlexService:
+    * search_works: Sends HTTP GET requests to the OpenAlex Works API.
+    * Configures polite pool headers using OPENALEX_MAILTO for high reliability.
+    * Maps parameters: query, publication year bounds, sorting, and pagination.
+    * Handles HTTP timeouts, non-200 responses, and connection retries cleanly.
+
+paper_discovery/services/normalizers.py
+  - reconstruct_inverted_abstract: Converts OpenAlex's token-inverted index
+    structures ({"Word": [pos1, pos2]}) into clean, continuous prose paragraphs.
+  - normalize_openalex_work: Extracts and standardizes title, authors, publication
+    year, journal/venue name, citation count, DOI URL, open-access status, and
+    direct open-access PDF download links.
+
+paper_discovery/views.py
+  - search_view: Processes search input, invokes OpenAlexService, formats
+    results with normalizers, handles pagination, and renders search.html.
+
+paper_discovery/urls.py
+  Maps routes:
+  - /discovery/               [name='paper_search']
+
+paper_discovery/tests.py
+  Unit tests validating inverted index abstract reconstruction, OpenAlex API
+  adapter error handling, polite pool header injection, and query sanitization.
+
+
+================================================================================
+8. PDF INGESTION & PRIVATE STORAGE APP (documents/)
+================================================================================
+documents/
+  Handles uploading, security scanning, page-by-page text extraction, semantic
+  sliding-window chunking, and ownership-gated serving of research PDFs.
+
+documents/apps.py
+  Defines DocumentsConfig (name = 'documents').
+
+documents/models.py
+  - ResearchDocument:
+    * project: ForeignKey -> ResearchProject.
+    * uploader: ForeignKey -> User.
+    * original_filename: Name of the uploaded file.
+    * file: FileField stored inside private_documents/%Y/%m/.
+    * file_size: BigIntegerField tracking bytes.
+    * checksum: CharField (SHA-256 hash) preventing duplicates in the same workspace.
+    * detected_mime: Validated MIME type (e.g., 'application/pdf').
+    * processing_status: State machine tracker ('uploaded', 'queued', 'extracting',
+      'chunking', 'embedding', 'indexed', 'failed').
+    * error_details: Diagnostic details if ingestion fails (e.g., scanned PDF alert).
+    * total_pages: Total number of pages extracted.
+  - DocumentChunk:
+    * project: ForeignKey -> ResearchProject.
+    * document: ForeignKey -> ResearchDocument.
+    * chunk_index: Sequential integer position of chunk in the document.
+    * page_start: 1-indexed page where passage begins.
+    * page_end: 1-indexed page where passage ends.
+    * text: Extracted passage text (~500-800 words).
+    * vector_id: Integer position in the project's FAISS index.
+    * embedding_model: Name of model used ('all-MiniLM-L6-v2').
+
+documents/forms.py
+  - DocumentUploadForm: Handles multi-file uploads. Validates PDF magic bytes
+    (%PDF- header), MIME type, maximum file size (25MB), and workspace file limits (30 PDFs).
+
+documents/services/pdf_extractor.py
+  - extract_pdf_pages: Uses PyMuPDF (fitz) to open PDFs, iterate through pages,
+    extract raw text, normalize whitespace, and count pages.
+  - Scanned PDF Detection: Calculates text density per page. If text volume is
+    insufficient, flags the document as scanned, alerting the researcher that
+    OCR processing is required.
+
+documents/services/chunker.py
+  - chunk_document_pages: Implements an overlapping sliding-window chunking
+    algorithm (~500-800 words per passage with ~100-word overlap). Meticulously
+    tracks exact starting and ending pages for each chunk to support precision
+    clickable citations.
+
+documents/services/ingestion.py
+  - process_and_index_document: Orchestrates the entire ingestion lifecycle:
+    1. Update status to 'extracting'
+    2. Extract text via extract_pdf_pages
+    3. Verify text layer presence (abort if scanned)
+    4. Chunk text via chunk_document_pages (status: 'chunking')
+    5. Generate dense embeddings via embed_texts (status: 'embedding')
+    6. Persist DocumentChunk records in the database
+    7. Append embeddings into the project's FAISS vector store
+    8. Update document status to 'indexed'
+
+documents/views.py
+  - upload_documents: Handles multi-file PDF POST requests, enforces SHA-256
+    duplicate prevention, saves files, and triggers ingestion.
+  - serve_private_document: Secured streaming endpoint (/documents/<id>/view/).
+    Verifies user ownership before streaming PDF content with FileResponse.
+    Blocks public direct URL access.
+  - delete_document: Deletes document record, associated chunks, on-disk PDF,
+    and updates vector index mappings.
+  - retry_ingestion: Re-triggers ingestion pipeline for failed documents.
+
+documents/urls.py
+  Maps routes:
+  - /documents/upload/<project_id>/     [name='upload_documents']
+  - /documents/<doc_id>/view/           [name='serve_private_document']
+  - /documents/<doc_id>/delete/         [name='delete_document']
+  - /documents/<doc_id>/retry/          [name='retry_ingestion']
+
+documents/tests.py
+  Unit tests verifying PyMuPDF text extraction, chunk page tracking, scanned
+  document flagging, SHA-256 duplicate rejection, and 403 Forbidden access guards.
+
+
+================================================================================
+9. RAG PIPELINE, VECTOR SEARCH & CHAT APP (research_chat/)
+================================================================================
+research_chat/
+  Implements local dense vector search, project-isolated FAISS storage, strictly
+  grounded LLM synthesis, citation validation, and conversational chat threads.
+
+research_chat/apps.py
+  Defines ResearchChatConfig (name = 'research_chat').
+
+research_chat/models.py
+  - ChatConversation:
+    * project: ForeignKey -> ResearchProject.
+    * owner: ForeignKey -> User.
+    * title: CharField (thread title, e.g., "Biomarker Sensitivity Questions").
+  - ChatMessage:
+    * conversation: ForeignKey -> ChatConversation.
+    * role: 'user' or 'assistant'.
+    * content: Raw message text.
+    * token_usage: JSONField tracking usage metrics.
+    * processing_status: State tracker ('completed', 'failed').
+  - MessageSource:
+    * message: ForeignKey -> ChatMessage (links to assistant response).
+    * document: ForeignKey -> ResearchDocument.
+    * chunk: ForeignKey -> DocumentChunk (nullable on delete).
+    * page_reference: String indicating page numbers (e.g., "p. 3-4").
+    * excerpt: Passage snippet used as evidence.
+    * similarity_score: Cosine similarity score between query and chunk.
+
+research_chat/services/embeddings.py
+  - LocalEmbeddingService: Singleton wrapper around sentence-transformers
+    (all-MiniLM-L6-v2). Runs locally on CPU/GPU, producing normalized 384-d
+    float32 vectors without external API calls or latency costs.
+
+research_chat/services/vector_store.py
+  - FAISSVectorStore: Manages project-specific FAISS IndexFlatIP (Inner Product)
+    indexes stored at vector_indexes/project_<id>.index.
+  - Maintains synchronized chunk ID mapping files (project_<id>_chunks.json).
+  - Guarantees complete vector isolation: Project A can never query Project B.
+
+research_chat/services/retriever.py
+  - retrieve_project_evidence: Embeds user query, queries project FAISS index
+    for top-k candidates, applies RAG_SIMILARITY_THRESHOLD cutoff, fetches
+    corresponding DocumentChunk records, and formats evidence payloads.
+
+research_chat/services/answer_generator.py
+  - Configurable LLM synthesis adapter:
+    * MockAnswerGenerator: Deterministic test engine producing grounded answers
+      with [Source N] tags without external model dependencies.
+    * OllamaAnswerGenerator: Connects to local Ollama instance (e.g., llama3.2).
+    * OpenAICompatibleGenerator: Connects to OpenAI-compatible endpoints.
+  - Strict Document Grounding Prompt: Explicitly instructs LLMs to answer
+    strictly using provided evidence passages and state lack of evidence when
+    queries cannot be substantiated.
+
+research_chat/services/citation_validator.py
+  - extract_and_validate_citations: Scans generated answers for [Source N] tags,
+    cross-references them against retrieved project chunks, verifies document
+    existence and page references, and produces structured citation records.
+
+research_chat/services/rag_pipeline.py
+  - execute_rag_query: Central RAG orchestrator:
+    1. Authenticate user and verify conversation & project ownership.
+    2. Persist user question as ChatMessage.
+    3. Retrieve top-k evidence chunks via retrieve_project_evidence.
+    4. Generate evidence-grounded answer via get_answer_generator.
+    5. Validate citations via extract_and_validate_citations.
+    6. Persist assistant answer and create MessageSource records.
+    7. Return answer, citations, and evidence sufficiency status.
+
+research_chat/views.py
+  - chat_view: Renders conversational workspace with conversation sidebar.
+  - create_conversation: Starts a new chat session within a project.
+  - send_message_api: AJAX endpoint receiving user questions, invoking RAG
+    pipeline, and returning JSON response with answer and citations.
+  - rename_conversation: Allows renaming conversation thread titles.
+  - delete_conversation: Deletes conversation thread and all messages.
+
+research_chat/urls.py
+  Maps routes:
+  - /chat/<project_id>/                   [name='chat_view']
+  - /chat/<project_id>/conversation/<id>/ [name='chat_view_conversation']
+  - /chat/<project_id>/create/            [name='create_conversation']
+  - /chat/conversation/<id>/send/         [name='send_message_api']
+  - /chat/conversation/<id>/rename/       [name='rename_conversation']
+  - /chat/conversation/<id>/delete/       [name='delete_conversation']
+
+research_chat/tests.py
+  Tests verifying vector retrieval thresholds, FAISS index isolation, citation
+  validation logic, and full RAG query execution.
+
+
+================================================================================
+10. FRONTEND TEMPLATES (templates/)
+================================================================================
+templates/
+  Server-rendered HTML5 templates utilizing Django Template Language (DTL).
+
+templates/base.html
+  Master skeleton providing responsive HTML structure, Google Fonts (Inter),
+  navigation bar, user account dropdown, CSRF tokens, dismissible alert toasts,
+  and PDF viewer modal placeholders.
+
+templates/accounts/
+  - login.html: Sign-in interface with clean input styling and validation alerts.
+  - register.html: Registration interface with password requirements helper.
+  - profile.html: Researcher profile overview with statistics and settings.
+
+templates/research_projects/
+  - dashboard.html: Main cockpit featuring metric summary cards, quick-search
+    bar, and active workspace grid.
+  - project_list.html: Full grid view of user's research workspaces.
+  - project_detail.html: Workspace cockpit displaying attached documents,
+    upload zone, status badges, and conversation list.
+  - project_form.html: Form for creating or editing research workspaces.
+  - project_confirm_delete.html: Confirmation modal for workspace deletion.
+
+templates/paper_discovery/
+  - search.html: Academic literature search interface with query bar, year range
+    inputs, sorting dropdowns, and scholarly paper cards displaying abstracts,
+    authors, citation counts, DOI links, and open-access download buttons.
+
+templates/documents/
+  - upload.html: Multi-file drag-and-drop PDF upload zone with file size limits.
+  - document_confirm_delete.html: Confirmation dialog for deleting a document.
+
+templates/research_chat/
+  - chat.html: ChatGPT-style interface featuring:
+    * Left sidebar: History of conversation threads with active highlighting,
+      rename, and delete controls.
+    * Central chat stream: User query bubbles, assistant answer cards, and
+      evidence sufficiency warnings.
+    * Clickable citation badges: Source chips displaying document title and
+      page number that open the embedded PDF viewer directly at `#page=N`.
+    * Right / modal viewer: Embedded PDF viewer frame for immediate evidence
+      verification without leaving the chat.
+
+
+================================================================================
+11. CLIENT STATIC ASSETS (static/)
+================================================================================
+static/css/main.css
+  Comprehensive styling for the platform. Implements an academic theme:
+  - Curated color palette: Deep navy/indigo headers, slate backgrounds, clean borders.
+  - Layout: CSS Flexbox and Grid layouts for dashboard, split-screen chat, and cards.
+  - Components: Pill badges for status indicators, evidence citation chips,
+    modal overlays, styled form inputs, and custom scrollbars.
+
+static/js/chat.js
+  Client-side JavaScript powering conversational chat:
+  - Asynchronous dispatch of questions to /chat/conversation/<id>/send/ via Fetch API.
+  - Dynamic appending of user message bubbles and typing indicators.
+  - Markdown-to-HTML rendering for formatted assistant answers.
+  - Citation chip event listeners: Intercepts clicks and opens the authorized
+    document viewer (/documents/<id>/view/#page=N) in a preview modal or new tab.
+  - Automatic vertical resizing of the chat input textarea.
+
+
+================================================================================
+12. SECURE MEDIA STORAGE (media/)
+================================================================================
+media/private_documents/
+  Protected physical directory where uploaded research PDFs are stored.
+  - Organized by date partitions (private_documents/%Y/%m/).
+  - Files are renamed with randomized collision-resistant suffixes by Django.
+  - Access Protection: Direct web server access is disabled. Files are only
+    accessible through the serve_private_document view, which enforces strict
+    session authentication and workspace ownership checks before streaming bytes.
+
+
+================================================================================
+13. PERSISTENT FAISS VECTOR INDEXES (vector_indexes/)
+================================================================================
+vector_indexes/
+  Storage directory for local FAISS vector stores:
+  - project_<id>.index: Serialized binary FAISS IndexFlatIP index containing
+    normalized 384-dimensional dense vectors for all chunks in project <id>.
+  - project_<id>_chunks.json: JSON mapping file binding FAISS vector positions
+    (0, 1, 2, ...) to relational DocumentChunk database IDs.
+  - Complete Isolation: Every project maintains its own dedicated index file,
+    ensuring zero cross-project vector leakage.
+
+
+================================================================================
+14. END-TO-END DATA FLOW PIPELINES
+================================================================================
+
+PIPELINE A: Academic Literature Discovery (OpenAlex)
+  1. Researcher enters keyword, year range, and sorting preference in /discovery/.
+  2. paper_discovery/views.py validates input via PaperSearchForm.
+  3. paper_discovery/services/openalex.py sends GET request to api.openalex.org/works.
+  4. paper_discovery/services/normalizers.py reconstructs inverted abstracts into
+     readable text and parses author lists, DOIs, and direct PDF URLs.
+  5. paper_discovery/templates/paper_discovery/search.html renders paper cards.
+  6. Researcher reviews papers and downloads selected PDFs to local storage.
+
+PIPELINE B: Document Ingestion & Vector Indexing
+  1. Researcher uploads research PDFs via /documents/upload/<project_id>/.
+  2. documents/views.py checks file size, MIME type, and computes SHA-256 checksum.
+  3. ResearchDocument record is created with status 'extracting'.
+  4. documents/services/pdf_extractor.py extracts text page-by-page using PyMuPDF.
+  5. Scanned PDF detector verifies text density (flags OCR requirement if empty).
+  6. documents/services/chunker.py generates overlapping passages (500-800 words),
+     preserving page_start and page_end for every chunk.
+  7. research_chat/services/embeddings.py generates 384-d normalized embeddings.
+  8. DocumentChunk records are saved to the relational database.
+  9. research_chat/services/vector_store.py appends vectors to project_<id>.index
+     and writes project_<id>_chunks.json to disk.
+  10. ResearchDocument status transitions to 'indexed'.
+
+PIPELINE C: Evidence-Grounded RAG Chat
+  1. Researcher sends a question in the chat interface (/chat/<project_id>/).
+  2. static/js/chat.js dispatches POST request to send_message_api.
+  3. research_chat/services/rag_pipeline.py validates project ownership.
+  4. User's query is embedded into a 384-d vector via LocalEmbeddingService.
+  5. FAISSVectorStore searches project_<id>.index for top-k nearest chunks.
+  6. retriever.py filters out chunks with cosine similarity below threshold.
+  7. answer_generator.py formats prompt with retrieved evidence and generates answer.
+  8. citation_validator.py verifies [Source N] claims against actual project chunks.
+  9. ChatMessage and MessageSource records are persisted in the database.
+  10. Response is returned as JSON and rendered with clickable citation chips
+      linking directly to the cited PDF pages.
+
+
+================================================================================
+15. MULTI-USER ISOLATION & SECURITY BOUNDARIES
+================================================================================
+ResearchMate AI enforces five distinct security boundaries:
+
+1. Relational Database Boundary:
+   Every query for workspaces, documents, chunks, and chat messages is scoped
+   by request.user. Attempts to access objects belonging to other users trigger
+   PermissionDenied (HTTP 403).
+
+2. Private File Storage Boundary:
+   Uploaded PDFs are stored outside the public document root. The only route to
+   access a PDF is /documents/<id>/view/, which checks project ownership before
+   streaming the file.
+
+3. FAISS Vector Space Boundary:
+   Each project owns an isolated FAISS index file (vector_indexes/project_<id>.index).
+   Vector searches are strictly confined to the active project's file, preventing
+   information leakage between workspaces.
+
+4. Hallucination & Grounding Boundary:
+   The synthesis prompt strictly confines the LLM to the retrieved evidence passages.
+   If retrieved passages do not meet similarity thresholds, the system explicitly
+   reports a lack of evidence rather than generating fabricated content.
+
+5. Citation Verification Boundary:
+   All citations generated by the assistant are validated against actual
+   DocumentChunk IDs and page numbers in the active project. Unverifiable citations
+   are discarded before display.
+================================================================================

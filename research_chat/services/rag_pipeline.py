@@ -75,7 +75,8 @@ def execute_rag_query(
     # 3. Retrieve Scoped Project Evidence
     retrieval_result = retrieve_project_evidence(
         project_id=project.id,
-        question=clean_question
+        question=clean_question,
+        project=project
     )
 
     passages = retrieval_result['passages']
