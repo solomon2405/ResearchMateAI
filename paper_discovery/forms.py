@@ -10,8 +10,6 @@ class PaperSearchForm(forms.Form):
         ('date_asc', 'Oldest First'),
     ]
 
-    current_year = datetime.datetime.now().year
-
     q = forms.CharField(
         required=True,
         max_length=300,
@@ -24,7 +22,6 @@ class PaperSearchForm(forms.Form):
     start_year = forms.IntegerField(
         required=False,
         min_value=1800,
-        max_value=current_year + 1,
         widget=forms.NumberInput(attrs={
             'class': 'form-input',
             'placeholder': 'From year (e.g. 2019)'
@@ -33,7 +30,6 @@ class PaperSearchForm(forms.Form):
     end_year = forms.IntegerField(
         required=False,
         min_value=1800,
-        max_value=current_year + 1,
         widget=forms.NumberInput(attrs={
             'class': 'form-input',
             'placeholder': 'To year (e.g. 2025)'
@@ -53,6 +49,12 @@ class PaperSearchForm(forms.Form):
         widget=forms.HiddenInput()
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        current_year = datetime.date.today().year
+        self.fields['start_year'].max_value = current_year + 1
+        self.fields['end_year'].max_value = current_year + 1
+
     def clean(self):
         cleaned_data = super().clean()
         start = cleaned_data.get('start_year')
@@ -60,3 +62,4 @@ class PaperSearchForm(forms.Form):
         if start and end and start > end:
             self.add_error('start_year', 'Start year cannot be greater than end year.')
         return cleaned_data
+

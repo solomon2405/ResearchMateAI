@@ -18,8 +18,11 @@ def reconstruct_abstract(inverted_index: Optional[Dict[str, List[int]]]) -> str:
         # Determine total tokens by max position
         position_word_map = {}
         for word, positions in inverted_index.items():
+            if not isinstance(positions, (list, tuple)):
+                continue
             for pos in positions:
-                position_word_map[pos] = word
+                if isinstance(pos, int) and 0 <= pos < 10000:
+                    position_word_map[pos] = str(word)
 
         if not position_word_map:
             return "Abstract unavailable."

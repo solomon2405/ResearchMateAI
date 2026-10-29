@@ -10,39 +10,52 @@ from typing import List, Dict, Any
 def split_into_sentences(text: str) -> List[str]:
     """
     Split text into sentences while respecting common academic abbreviations
-    such as 'et al.', 'Fig.', 'e.g.', 'i.e.', 'Dr.', etc.
+    and protecting decimals and scientific notation.
     """
-    # Replace common abbreviations with a placeholder
+    if not text:
+        return []
+
+    # Protect common academic abbreviations
     abbreviations = {
         r'\bet al\.': 'et_al_DOT',
         r'\be\.g\.': 'e_g_DOT',
         r'\bi\.e\.': 'i_e_DOT',
-        r'\bFig\.': 'Fig_DOT',
-        r'\bEq\.': 'Eq_DOT',
-        r'\bRef\.': 'Ref_DOT',
+        r'\bcf\.': 'cf_DOT',
+        r'\bca\.': 'ca_DOT',
         r'\bvs\.': 'vs_DOT',
+        r'\bFig\.\s*(\d+)': r'Fig_DOT_\1',
+        r'\bFigs\.\s*(\d+)': r'Figs_DOT_\1',
+        r'\bEq\.\s*(\d+)': r'Eq_DOT_\1',
+        r'\bEqs\.\s*(\d+)': r'Eqs_DOT_\1',
+        r'\bRef\.\s*(\d+)': r'Ref_DOT_\1',
+        r'\bRefs\.\s*(\d+)': r'Refs_DOT_\1',
         r'\bDr\.': 'Dr_DOT',
         r'\bProf\.': 'Prof_DOT',
-        r'\bVol\.': 'Vol_DOT',
-        r'\bNo\.': 'No_DOT',
-        r'\bp\.': 'p_DOT',
-        r'\bpp\.': 'pp_DOT',
+        r'\bVol\.\s*(\d+)': r'Vol_DOT_\1',
+        r'\bNo\.\s*(\d+)': r'No_DOT_\1',
+        r'\bp\.\s*(\d+)': r'p_DOT_\1',
+        r'\bpp\.\s*(\d+)': r'pp_DOT_\1',
     }
     
     masked = text
     for pattern, placeholder in abbreviations.items():
         masked = re.sub(pattern, placeholder, masked, flags=re.IGNORECASE)
 
-    # Split by standard sentence terminators followed by whitespace or uppercase
-    raw_sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z0-9"\'\(\[])', masked)
+    # Protect decimals like 3.14 or p < 0.01 by temporarily masking digit.digit
+    masked = re.sub(r'(\d)\.(\d)', r'\1_DECIMAL_\2', masked)
+
+    # Split by standard sentence terminators (. ! ?) followed by whitespace or quote/bracket
+    raw_sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z0-9"\'\(\[\u201c\u2018])', masked)
 
     # Restore placeholders
     sentences = []
     for s in raw_sentences:
-        restored = s
+        restored = s.replace('_DECIMAL_', '.')
         for _, placeholder in abbreviations.items():
-            original = placeholder.replace('_DOT', '.').replace('_', '.')
-            restored = restored.replace(placeholder, original)
+            base_token = placeholder.split('_')[0]
+            restored = restored.replace(f"{base_token}_DOT", f"{base_token}.")
+        # Clean any remaining internal DOT tags
+        restored = re.sub(r'_DOT_?', '.', restored)
         cleaned = restored.strip()
         if cleaned:
             sentences.append(cleaned)
@@ -57,6 +70,7 @@ def chunk_document_pages(
 ) -> List[Dict[str, Any]]:
     """
     Chunk extracted pages into semantic passages.
+    Safely bounds chunk sizes even when confronted with unpunctuated or pathological text.
     
     Args:
         pages: List of {'page_number': int, 'text': str}
@@ -90,7 +104,20 @@ def chunk_document_pages(
             para_sentences = split_into_sentences(para)
             for sentence in para_sentences:
                 words = sentence.split()
-                if words:
+                if not words:
+                    continue
+                # Pathological sentence guard: if a single sentence exceeds target_words,
+                # break it into bounded word slices to protect embedding context
+                if len(words) > target_words:
+                    step = max(50, target_words - overlap_words)
+                    for start_idx in range(0, len(words), step):
+                        sub_slice = words[start_idx:start_idx + target_words]
+                        sentence_items.append({
+                            'text': " ".join(sub_slice),
+                            'page': page_num,
+                            'word_count': len(sub_slice)
+                        })
+                else:
                     sentence_items.append({
                         'text': sentence,
                         'page': page_num,
@@ -111,11 +138,11 @@ def chunk_document_pages(
         current_sentences.append(item)
         current_word_count += item['word_count']
 
-        # If we have reached or exceeded target word count, finalize this chunk
+        # Finalize this chunk when target word count is reached or at last sentence
         if current_word_count >= target_words or idx == len(sentence_items) - 1:
             chunk_text = " ".join([s['text'] for s in current_sentences]).strip()
-            page_start = current_sentences[0]['page']
-            page_end = current_sentences[-1]['page']
+            page_start = min(s['page'] for s in current_sentences)
+            page_end = max(s['page'] for s in current_sentences)
 
             chunks.append({
                 'chunk_index': chunk_index,
@@ -138,6 +165,11 @@ def chunk_document_pages(
                     overlap_count += s['word_count']
                 else:
                     break
+
+            # Safety check: if overlap would retain entire chunk, advance by at least one item
+            if len(overlap_sentences) == len(current_sentences) and len(overlap_sentences) > 1:
+                overlap_sentences.pop(0)
+                overlap_count = sum(s['word_count'] for s in overlap_sentences)
 
             current_sentences = overlap_sentences
             current_word_count = overlap_count

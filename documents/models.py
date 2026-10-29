@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from research_projects.models import ResearchProject
 
@@ -57,6 +58,16 @@ class ResearchDocument(models.Model):
     def __str__(self):
         return f"{self.original_filename} [{self.get_processing_status_display()}]"
 
+    def clean(self):
+        super().clean()
+        if self.uploader_id and self.project_id:
+            if self.project.owner_id != self.uploader_id:
+                raise ValidationError("Document uploader must match the owner of the research project.")
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
     @property
     def file_size_display(self):
         """Human-readable file size."""
@@ -89,7 +100,7 @@ class DocumentChunk(models.Model):
     text = models.TextField()
     vector_id = models.IntegerField(null=True, blank=True, help_text="Index position in FAISS vector store")
     embedding_model = models.CharField(max_length=100, default='all-MiniLM-L6-v2')
-    index_version = models.CharField(max_length=50, default='1.0')
+    index_version = models.CharField(max_length=50, default='2.0')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -100,3 +111,13 @@ class DocumentChunk(models.Model):
 
     def __str__(self):
         return f"Chunk #{self.chunk_index} of {self.document.original_filename} (p. {self.page_start})"
+
+    def clean(self):
+        super().clean()
+        if self.document_id and self.project_id:
+            if self.document.project_id != self.project_id:
+                raise ValidationError("DocumentChunk project must match its parent Document's project.")
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)

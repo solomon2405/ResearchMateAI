@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from research_projects.models import ResearchProject
 from documents.models import ResearchDocument, DocumentChunk
@@ -29,6 +30,16 @@ class ChatConversation(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.project.name})"
+
+    def clean(self):
+        super().clean()
+        if self.project_id and self.owner_id:
+            if self.project.owner_id != self.owner_id:
+                raise ValidationError("ChatConversation owner must match the project owner.")
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
 
 
 class ChatMessage(models.Model):
@@ -90,3 +101,16 @@ class MessageSource(models.Model):
 
     def __str__(self):
         return f"Source: {self.document.original_filename} (p. {self.page_reference})"
+
+    def clean(self):
+        super().clean()
+        if self.message_id and self.document_id:
+            if self.document.project_id != self.message.conversation.project_id:
+                raise ValidationError("MessageSource document must belong to the conversation's project.")
+        if self.chunk_id and self.document_id:
+            if self.chunk.document_id != self.document_id:
+                raise ValidationError("MessageSource chunk must belong to the cited document.")
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)

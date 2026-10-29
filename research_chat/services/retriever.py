@@ -24,17 +24,22 @@ def retrieve_project_evidence(
 ) -> Dict[str, Any]:
     """
     Retrieve evidence chunks for a user question strictly within the project scope.
+    Distinguishes raw dense similarity from ranking features (keyword matches, overview boosts),
+    enforces real evidence thresholds, and bounds the context token budget.
     
     Returns:
         {
             'has_sufficient_evidence': bool,
             'passages': List[Dict[str, Any]],
             'top_score': float,
-            'error': Optional[str]
+            'top_dense_similarity': float,
+            'error': Optional[str],
+            'insufficient_reason': Optional[str]
         }
     """
     top_k = top_k or getattr(settings, 'RAG_TOP_K', 5)
-    threshold = similarity_threshold if similarity_threshold is not None else getattr(settings, 'RAG_SIMILARITY_THRESHOLD', 0.20)
+    threshold = similarity_threshold if similarity_threshold is not None else getattr(settings, 'RAG_SIMILARITY_THRESHOLD', 0.35)
+    max_context_tokens = getattr(settings, 'RAG_MAX_CONTEXT_TOKENS', 3000)
 
     clean_question = question.strip()
     if not clean_question:
@@ -42,7 +47,9 @@ def retrieve_project_evidence(
             'has_sufficient_evidence': False,
             'passages': [],
             'top_score': 0.0,
-            'error': 'Question cannot be empty.'
+            'top_dense_similarity': 0.0,
+            'error': 'Question cannot be empty.',
+            'insufficient_reason': 'Question cannot be empty.'
         }
 
     # Retrieve project model if not provided
@@ -59,9 +66,9 @@ def retrieve_project_evidence(
         parts = [p for p in [getattr(project, 'name', ''), getattr(project, 'research_topic', '')] if p]
         topic_context = " ".join(parts).strip()
 
-    # Detect overview, summary, abstract, or broad exploratory queries
+    # Detect overview, summary, or broad workspace review queries
     is_overview_query = bool(re.search(
-        r'\b(summa\w*|abstract\w*|overview|about|what\s+is|what\s+are|tell\s+me|intro\w*|background|explain|stack|baseline|technolog\w*)\b',
+        r'\b(summary|summarize|overview|all\s+papers|entire\s+workspace|review\s+of\s+papers|workspace\s+summary|literature\s+review)\b',
         clean_question,
         re.IGNORECASE
     ))
@@ -69,21 +76,31 @@ def retrieve_project_evidence(
     # Search project-isolated vector store
     vector_store = get_project_vector_store(project_id)
     search_k = max(top_k * 3, 12)
-    merged_hits: Dict[int, float] = {}
+
+    # Track scores per chunk: chunk_id -> {'dense': float, 'keyword_boost': float, 'overview_boost': float}
+    chunk_scores: Dict[int, Dict[str, float]] = {}
+
+    def get_or_create_record(cid: int) -> Dict[str, float]:
+        if cid not in chunk_scores:
+            chunk_scores[cid] = {'dense': 0.0, 'keyword_boost': 0.0, 'overview_boost': 0.0}
+        return chunk_scores[cid]
 
     # 1. Primary vector search with raw query
     base_vector = embed_query(clean_question)
     base_hits = vector_store.search(base_vector, top_k=search_k)
     for cid, score in base_hits:
-        merged_hits[cid] = max(merged_hits.get(cid, 0.0), score)
+        rec = get_or_create_record(cid)
+        rec['dense'] = max(rec['dense'], float(score))
 
-    # 2. Context-augmented vector search using project topic keywords
-    if topic_context:
+    # 2. Context-augmented vector search using project topic keywords (only for overview/exploratory queries)
+    if is_overview_query and topic_context:
         context_query = f"{clean_question} {topic_context}"
         context_vector = embed_query(context_query)
         context_hits = vector_store.search(context_vector, top_k=search_k)
         for cid, score in context_hits:
-            merged_hits[cid] = max(merged_hits.get(cid, 0.0), score)
+            rec = get_or_create_record(cid)
+            # Weight context search lower than direct question similarity
+            rec['dense'] = max(rec['dense'], float(score) * 0.85)
 
     # 3. Overview / Abstract expansion vector search
     if is_overview_query and topic_context:
@@ -91,20 +108,22 @@ def retrieve_project_evidence(
         overview_vector = embed_query(overview_query)
         overview_hits = vector_store.search(overview_vector, top_k=search_k)
         for cid, score in overview_hits:
-            merged_hits[cid] = max(merged_hits.get(cid, 0.0), score)
+            rec = get_or_create_record(cid)
+            rec['dense'] = max(rec['dense'], float(score) * 0.80)
 
-    # 4. For overview/abstract queries, prioritize page-1 / introductory chunks across documents
+
+    # 4. Explicit overview ranking boost for introductory chunks (without fabricating dense score)
     if is_overview_query:
-        abstract_chunks = DocumentChunk.objects.filter(
+        abstract_chunks = list(DocumentChunk.objects.filter(
             project_id=project_id,
             document__processing_status='indexed',
             chunk_index__in=[0, 1]
-        ).values_list('id', flat=True)
+        ).values_list('id', flat=True))
         for cid in abstract_chunks:
-            current_score = merged_hits.get(cid, 0.0)
-            merged_hits[cid] = max(current_score, 0.35)
+            rec = get_or_create_record(cid)
+            rec['overview_boost'] = 0.08
 
-    # 5. Hybrid keyword assistance for specific terms in question
+    # 5. Lexical keyword assistance: record explicit lexical feature boost
     stop_words = {'what', 'when', 'where', 'which', 'about', 'tell', 'this', 'that', 'from', 'with', 'have', 'been', 'paper', 'papers', 'choose', 'appropriate', 'basically'}
     significant_words = [
         w for w in re.findall(r'\b[A-Za-z0-9_-]{4,}\b', clean_question.lower())
@@ -118,31 +137,47 @@ def retrieve_project_evidence(
         for word in significant_words[:4]:
             matched_ids = list(keyword_chunks.filter(text__icontains=word).values_list('id', flat=True)[:6])
             for cid in matched_ids:
-                merged_hits[cid] = max(merged_hits.get(cid, 0.0), 0.30)
+                rec = get_or_create_record(cid)
+                rec['keyword_boost'] = max(rec['keyword_boost'], 0.05)
 
-    if not merged_hits:
+    if not chunk_scores:
         return {
             'has_sufficient_evidence': False,
             'passages': [],
             'top_score': 0.0,
-            'error': None
+            'top_dense_similarity': 0.0,
+            'error': None,
+            'insufficient_reason': 'No candidate passages retrieved in active project.'
         }
 
-    # Extract chunk IDs passing calibrated similarity threshold
-    hit_map = {chunk_id: score for chunk_id, score in merged_hits.items() if score >= threshold}
+    # Evaluate candidate chunks against genuine dense similarity threshold
+    eligible_cids = []
+    for cid, scores in chunk_scores.items():
+        dense = scores['dense']
+        total_rank_score = dense + scores['keyword_boost'] + scores['overview_boost']
+        scores['final_rank_score'] = total_rank_score
+        
+        # Dense threshold gating: require meaningful dense similarity
+        if dense >= threshold or (is_overview_query and dense >= threshold * 0.75):
+            eligible_cids.append(cid)
 
-    if not hit_map:
-        best_score = max(merged_hits.values()) if merged_hits else 0.0
+    if not eligible_cids:
+        max_dense = max(s['dense'] for s in chunk_scores.values()) if chunk_scores else 0.0
         return {
             'has_sufficient_evidence': False,
             'passages': [],
-            'top_score': best_score,
-            'error': None
+            'top_score': max_dense,
+            'top_dense_similarity': max_dense,
+            'error': None,
+            'insufficient_reason': (
+                f"Retrieved passages did not meet similarity threshold "
+                f"({max_dense:.2f} < {threshold:.2f})."
+            )
         }
 
-    # Fetch corresponding chunks from DB ensuring project_id match
+    # Fetch corresponding chunks from DB ensuring project_id match and indexed status
     matching_chunks = DocumentChunk.objects.filter(
-        id__in=hit_map.keys(),
+        id__in=eligible_cids,
         project_id=project_id,
         document__processing_status='indexed'
     ).select_related('document')
@@ -157,7 +192,8 @@ def retrieve_project_evidence(
             continue
         seen_texts.add(text_signature)
 
-        score = hit_map[chunk.id]
+        scores = chunk_scores[chunk.id]
+        final_rank_score = scores.get('final_rank_score', scores['dense'])
         page_ref = f"{chunk.page_start}" if chunk.page_start == chunk.page_end else f"{chunk.page_start}-{chunk.page_end}"
 
         passages.append({
@@ -168,10 +204,13 @@ def retrieve_project_evidence(
             'page_end': chunk.page_end,
             'page_reference': page_ref,
             'text': chunk.text,
-            'score': score,
+            'score': round(final_rank_score, 4),
+            'dense_similarity': round(scores['dense'], 4),
+            'keyword_boost': round(scores['keyword_boost'], 4),
+            'overview_boost': round(scores['overview_boost'], 4),
         })
 
-    # Sort by similarity score descending
+    # Sort by final ranking score descending
     passages.sort(key=lambda p: p['score'], reverse=True)
 
     # When multiple documents exist in project, ensure diverse document representation
@@ -186,14 +225,28 @@ def retrieve_project_evidence(
         else:
             remaining_passages.append(p)
 
-    passages = (diverse_passages + remaining_passages)[:top_k]
+    selected_passages = (diverse_passages + remaining_passages)[:top_k]
 
-    has_sufficient_evidence = len(passages) > 0
-    top_score = passages[0]['score'] if passages else 0.0
+    # Enforce token context budget (approx 1.3 tokens per word)
+    budgeted_passages = []
+    accumulated_tokens = 0
+    for p in selected_passages:
+        est_tokens = int(len(p['text'].split()) * 1.3)
+        if accumulated_tokens + est_tokens <= max_context_tokens or not budgeted_passages:
+            budgeted_passages.append(p)
+            accumulated_tokens += est_tokens
+        else:
+            break
+
+    has_sufficient_evidence = len(budgeted_passages) > 0
+    top_score = budgeted_passages[0]['score'] if budgeted_passages else 0.0
+    top_dense = budgeted_passages[0]['dense_similarity'] if budgeted_passages else 0.0
 
     return {
         'has_sufficient_evidence': has_sufficient_evidence,
-        'passages': passages,
+        'passages': budgeted_passages,
         'top_score': top_score,
-        'error': None
+        'top_dense_similarity': top_dense,
+        'error': None,
+        'insufficient_reason': None if has_sufficient_evidence else "Insufficient matching evidence."
     }

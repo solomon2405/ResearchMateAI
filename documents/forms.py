@@ -56,50 +56,80 @@ class DocumentUploadForm(forms.Form):
                     f"You have {current_count} papers; only {remaining_slots} more can be uploaded."
                 )
 
+        max_pages_limit = getattr(settings, 'MAX_PAGES_PER_DOCUMENT', 500)
+        seen_batch_checksums = set()
+        seen_batch_names = set()
         validated_files = []
+
         for uploaded_file in uploaded_files:
             # 1. Extension check
-            filename = uploaded_file.name.lower()
-            if not filename.endswith('.pdf'):
-                raise ValidationError(f"'{uploaded_file.name}' is not a PDF file. Only PDF documents are supported.")
+            orig_name = uploaded_file.name or "document.pdf"
+            filename_lower = orig_name.lower()
+            if not filename_lower.endswith('.pdf'):
+                raise ValidationError(f"'{orig_name}' is not a PDF file. Only PDF documents are supported.")
+
+            # Check duplicate filenames in same batch
+            if filename_lower in seen_batch_names:
+                raise ValidationError(f"Duplicate filename '{orig_name}' detected in the upload batch.")
+            seen_batch_names.add(filename_lower)
 
             # 2. File size check
             if uploaded_file.size > max_size_bytes:
                 raise ValidationError(
-                    f"'{uploaded_file.name}' ({uploaded_file.size / (1024*1024):.1f} MB) exceeds "
+                    f"'{orig_name}' ({uploaded_file.size / (1024*1024):.1f} MB) exceeds "
                     f"the maximum allowed size of {max_size_mb} MB."
                 )
             if uploaded_file.size < 100:
-                raise ValidationError(f"'{uploaded_file.name}' is empty or too small to be a valid PDF.")
+                raise ValidationError(f"'{orig_name}' is empty or too small to be a valid PDF.")
 
-            # 3. Read content to compute checksum and verify PDF magic header
-            content = uploaded_file.read()
-            uploaded_file.seek(0)  # Reset pointer for subsequent saving
+            # 3. Streamingly compute SHA-256 hash in bounded 64KB blocks (memory-safe)
+            hasher = hashlib.sha256()
+            uploaded_file.seek(0)
+            for chunk in uploaded_file.chunks(chunk_size=65536):
+                hasher.update(chunk)
+            file_hash = hasher.hexdigest()
 
-            if not content.startswith(b'%PDF-'):
-                raise ValidationError(f"'{uploaded_file.name}' does not have a valid PDF header.")
+            # Batch-level duplicate detection
+            if file_hash in seen_batch_checksums:
+                raise ValidationError(f"Duplicate file contents detected in upload batch for '{orig_name}'.")
+            seen_batch_checksums.add(file_hash)
 
-            # 4. PyMuPDF integrity check
+            # 4. Check PDF magic header from initial bytes
+            uploaded_file.seek(0)
+            header_sample = uploaded_file.read(1024)
+            if b'%PDF-' not in header_sample[:128]:
+                raise ValidationError(f"'{orig_name}' does not contain a valid %PDF- header signature.")
+
+            # 5. PyMuPDF integrity and page count check
+            uploaded_file.seek(0)
+            doc = None
             try:
-                doc = fitz.open(stream=content, filetype="pdf")
+                if hasattr(uploaded_file, 'temporary_file_path'):
+                    doc = fitz.open(uploaded_file.temporary_file_path())
+                else:
+                    doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+
                 if doc.is_encrypted:
-                    doc.close()
-                    raise ValidationError(f"'{uploaded_file.name}' is encrypted or password-protected.")
+                    raise ValidationError(f"'{orig_name}' is encrypted or password-protected.")
                 if doc.page_count < 1:
-                    doc.close()
-                    raise ValidationError(f"'{uploaded_file.name}' contains no readable pages.")
-                doc.close()
+                    raise ValidationError(f"'{orig_name}' contains no readable pages.")
+                if doc.page_count > max_pages_limit:
+                    raise ValidationError(
+                        f"'{orig_name}' has {doc.page_count} pages, exceeding the limit of {max_pages_limit} pages."
+                    )
             except ValidationError:
                 raise
             except Exception as e:
-                raise ValidationError(f"'{uploaded_file.name}' could not be parsed: {str(e)}")
+                raise ValidationError(f"'{orig_name}' could not be parsed as a valid PDF: {str(e)}")
+            finally:
+                if doc:
+                    doc.close()
+                uploaded_file.seek(0)
 
-            # 5. Checksum duplicate check within this project
-            file_hash = hashlib.sha256(content).hexdigest()
+            # 6. Checksum duplicate check against existing project documents in DB
             if self.project and self.project.documents.filter(checksum=file_hash).exists():
-                raise ValidationError(f"'{uploaded_file.name}' has already been uploaded to this project.")
+                raise ValidationError(f"'{orig_name}' has already been uploaded to this project.")
 
-            # Attach calculated checksum to file object for view efficiency
             uploaded_file.checksum = file_hash
             validated_files.append(uploaded_file)
 

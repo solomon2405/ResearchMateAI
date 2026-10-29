@@ -86,54 +86,76 @@ def execute_rag_query(
     # 4. Generate Answer via Configured Generator
     generator = get_answer_generator()
     
-    # Fetch recent conversation history for flow
-    recent_messages = list(conversation.messages.order_by('-created_at')[:4])
+    # Fetch recent conversation history for flow (exclude current user_msg)
+    recent_messages = list(conversation.messages.order_by('-created_at')[:5])
     recent_messages.reverse()
     history = [{'role': m.role, 'content': m.content} for m in recent_messages if m.id != user_msg.id]
 
-    generation_result = generator.generate_answer(
-        question=clean_question,
-        passages=passages,
-        has_sufficient_evidence=has_sufficient_evidence,
-        conversation_history=history
-    )
-    raw_answer = generation_result['answer']
+    try:
+        generation_result = generator.generate_answer(
+            question=clean_question,
+            passages=passages,
+            has_sufficient_evidence=has_sufficient_evidence,
+            conversation_history=history
+        )
+        raw_answer = generation_result.get('answer', '')
 
-    # 5. Validate Citations
-    sanitized_answer, valid_citations = extract_and_validate_citations(
-        raw_answer=raw_answer,
-        passages=passages,
-        project_id=project.id
-    )
-
-    # 6. Persist Assistant Answer and Citations
-    with transaction.atomic():
-        assistant_msg = ChatMessage.objects.create(
-            conversation=conversation,
-            role='assistant',
-            content=sanitized_answer,
-            token_usage=generation_result.get('token_usage', {}),
-            processing_status='completed'
+        # 5. Validate Citations against project documents
+        sanitized_answer, valid_citations = extract_and_validate_citations(
+            raw_answer=raw_answer,
+            passages=passages,
+            project_id=project.id
         )
 
-        # Create normalized source links
-        for cit in valid_citations:
-            MessageSource.objects.create(
-                message=assistant_msg,
-                document_id=cit['document_id'],
-                chunk_id=cit['chunk_id'],
-                page_reference=cit['page_reference'],
-                excerpt=cit['excerpt'],
-                similarity_score=cit.get('similarity_score')
+        # 6. Persist Assistant Answer and Citations
+        with transaction.atomic():
+            assistant_msg = ChatMessage.objects.create(
+                conversation=conversation,
+                role='assistant',
+                content=sanitized_answer,
+                token_usage=generation_result.get('token_usage', {}),
+                processing_status='completed'
             )
 
-        conversation.save(update_fields=['updated_at'])
+            # Create normalized source links
+            for cit in valid_citations:
+                MessageSource.objects.create(
+                    message=assistant_msg,
+                    document_id=cit['document_id'],
+                    chunk_id=cit['chunk_id'],
+                    page_reference=cit['page_reference'],
+                    excerpt=cit['excerpt'],
+                    similarity_score=cit.get('similarity_score')
+                )
 
-    return {
-        'user_message_id': user_msg.id,
-        'assistant_message_id': assistant_msg.id,
-        'answer': sanitized_answer,
-        'citations': valid_citations,
-        'has_sufficient_evidence': has_sufficient_evidence,
-        'top_score': top_score,
-    }
+            conversation.save(update_fields=['updated_at'])
+
+        return {
+            'user_message_id': user_msg.id,
+            'assistant_message_id': assistant_msg.id,
+            'answer': sanitized_answer,
+            'citations': valid_citations,
+            'has_sufficient_evidence': has_sufficient_evidence,
+            'top_score': top_score,
+        }
+    except Exception as e:
+        logger.exception("RAG processing failed for conversation %s: %s", conversation.id, e)
+        with transaction.atomic():
+            assistant_msg = ChatMessage.objects.create(
+                conversation=conversation,
+                role='assistant',
+                content="An error occurred while synthesizing evidence from your documents. Please try again.",
+                processing_status='failed',
+                token_usage={}
+            )
+            conversation.save(update_fields=['updated_at'])
+
+        return {
+            'user_message_id': user_msg.id,
+            'assistant_message_id': assistant_msg.id,
+            'answer': assistant_msg.content,
+            'citations': [],
+            'has_sufficient_evidence': False,
+            'top_score': 0.0,
+        }
+

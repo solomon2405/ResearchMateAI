@@ -26,16 +26,21 @@ def upload_documents_view(request, project_id):
             failed_count = 0
 
             for f in uploaded_files:
-                doc = ResearchDocument.objects.create(
-                    project=project,
-                    uploader=request.user,
-                    original_filename=f.name,
-                    file=f,
-                    file_size=f.size,
-                    checksum=f.checksum,
-                    detected_mime='application/pdf',
-                    processing_status='uploaded'
-                )
+                try:
+                    doc = ResearchDocument.objects.create(
+                        project=project,
+                        uploader=request.user,
+                        original_filename=f.name,
+                        file=f,
+                        file_size=f.size,
+                        checksum=f.checksum,
+                        detected_mime='application/pdf',
+                        processing_status='uploaded'
+                    )
+                except Exception as e:
+                    # Catch concurrent duplicate uploads or database integrity errors safely
+                    failed_count += 1
+                    continue
 
                 # Process synchronous for immediate indexing availability
                 success = process_and_index_document(doc.id)
@@ -127,7 +132,8 @@ def serve_private_document_view(request, pk):
     Streams the private PDF file ONLY if the authenticated user owns the parent project.
     Direct access to media/private_documents/ is blocked at the web server level.
     """
-    document = get_object_or_404(ResearchDocument, pk=pk)
+    import re
+    document = get_object_or_404(ResearchDocument.objects.select_related('project'), pk=pk)
 
     # Multi-user isolation enforcement:
     if document.project.owner != request.user:
@@ -136,7 +142,8 @@ def serve_private_document_view(request, pk):
     if not document.file or not os.path.exists(document.file.path):
         raise Http404("Document file not found in private storage.")
 
+    safe_filename = re.sub(r'[\r\n"\\/]', '_', document.original_filename)
     response = FileResponse(open(document.file.path, 'rb'), content_type='application/pdf')
     # Use inline so browser PDF viewer can display it (and support #page=N links)
-    response['Content-Disposition'] = f'inline; filename="{document.original_filename}"'
+    response['Content-Disposition'] = f'inline; filename="{safe_filename}"'
     return response

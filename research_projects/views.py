@@ -15,7 +15,7 @@ def dashboard_view(request):
     and a quick search field.
     """
     user = request.user
-    projects = user.research_projects.all()
+    projects = user.research_projects.prefetch_related('documents', 'conversations').all()
     recent_projects = projects[:4]
     
     total_projects = projects.count()
@@ -44,7 +44,7 @@ def dashboard_view(request):
 @login_required
 def project_list_view(request):
     """List all research projects owned by the authenticated researcher."""
-    projects_list = request.user.research_projects.all()
+    projects_list = request.user.research_projects.prefetch_related('documents', 'conversations').order_by('-created_at')
     paginator = Paginator(projects_list, 9)
     page_number = request.GET.get('page')
     projects = paginator.get_page(page_number)
@@ -126,6 +126,15 @@ def project_delete_view(request, pk):
 
     if request.method == 'POST':
         project_name = project.name
+        # Delete stored PDF files from private storage
+        import os
+        for doc in project.documents.all():
+            try:
+                if doc.file and os.path.exists(doc.file.path):
+                    os.remove(doc.file.path)
+            except Exception:
+                pass
+
         # Delete FAISS vector index if exists on disk
         from research_chat.services.vector_store import get_project_vector_store
         vector_store = get_project_vector_store(project.pk)

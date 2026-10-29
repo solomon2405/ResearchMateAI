@@ -55,11 +55,56 @@ class AuthenticationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Invalid username or password")
 
-    def test_logout(self):
+    def test_logout_post_success(self):
         self.client.login(username='existing_user', password='ValidPassword123!')
-        response = self.client.get(reverse('logout'), follow=True)
+        response = self.client.post(reverse('logout'), follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.context['user'].is_authenticated)
+
+    def test_logout_get_rejected(self):
+        """Ensure GET requests to logout are rejected with 405 Method Not Allowed."""
+        self.client.login(username='existing_user', password='ValidPassword123!')
+        response = self.client.get(reverse('logout'))
+        self.assertEqual(response.status_code, 405)
+
+    def test_login_safe_redirect(self):
+        """Ensure valid relative next redirects are honored."""
+        response = self.client.post(
+            f"{reverse('login')}?next=/projects/create/",
+            {
+                'username': 'existing_user',
+                'password': 'ValidPassword123!'
+            }
+        )
+        self.assertRedirects(response, '/projects/create/')
+
+    def test_login_unsafe_redirect_rejected(self):
+        """Ensure external/malicious next redirects are blocked and fall back to dashboard."""
+        unsafe_urls = [
+            'https://malicious-external-site.com',
+            '//attacker.com/evil',
+            'javascript:alert(1)',
+        ]
+        for bad_url in unsafe_urls:
+            response = self.client.post(
+                f"{reverse('login')}?next={bad_url}",
+                {
+                    'username': 'existing_user',
+                    'password': 'ValidPassword123!'
+                }
+            )
+            self.assertRedirects(response, reverse('dashboard'))
+
+    def test_registration_weak_password_rejected(self):
+        """Ensure weak/common password is rejected by Django's password validators."""
+        data = self.user_data.copy()
+        data['username'] = 'dr_weak'
+        data['email'] = 'weak@university.edu'
+        data['password'] = '12345678'
+        data['password_confirm'] = '12345678'
+        response = self.client.post(reverse('register'), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(User.objects.filter(username='dr_weak').exists())
 
     def test_protected_pages_redirect_to_login(self):
         protected_urls = [

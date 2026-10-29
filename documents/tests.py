@@ -179,3 +179,51 @@ class DocumentPipelineTests(TestCase):
         # Unauthorized User 2 tries to download User 1's PDF -> must be 403 Forbidden
         unauthorized_response = self.client2.get(reverse('document_serve', kwargs={'pk': doc.pk}))
         self.assertEqual(unauthorized_response.status_code, 403)
+
+    def test_relational_integrity_chunk_mismatch(self):
+        from django.core.exceptions import ValidationError
+        pdf_file = SimpleUploadedFile("rel_test.pdf", self.valid_pdf_bytes, content_type="application/pdf")
+        doc = ResearchDocument.objects.create(
+            project=self.project1,
+            uploader=self.user1,
+            original_filename="rel_test.pdf",
+            file=pdf_file,
+            file_size=len(self.valid_pdf_bytes),
+            checksum="rel_test_checksum",
+            processing_status="uploaded"
+        )
+        other_project = ResearchProject.objects.create(
+            owner=self.user2,
+            name="Other Project",
+            research_topic="Other"
+        )
+        # Attempt to save a chunk with a mismatched project
+        chunk = DocumentChunk(
+            project=other_project,
+            document=doc,
+            chunk_index=0,
+            page_start=1,
+            page_end=1,
+            text="Mismatched project test chunk"
+        )
+        with self.assertRaises(ValidationError):
+            chunk.clean()
+
+    def test_spoofed_pdf_extension_rejected(self):
+        spoofed_file = SimpleUploadedFile("fake.pdf", b"NOT_A_REAL_PDF_DATA_HEADER_" * 20, content_type="application/pdf")
+        response = self.client1.post(
+            reverse('document_upload', kwargs={'project_id': self.project1.pk}),
+            {'files': [spoofed_file]}
+        )
+        self.assertContains(response, "%PDF- header signature")
+
+    def test_intrabatch_duplicate_rejected(self):
+        pdf_file_a = SimpleUploadedFile("batch1.pdf", self.valid_pdf_bytes, content_type="application/pdf")
+        pdf_file_b = SimpleUploadedFile("batch2.pdf", self.valid_pdf_bytes, content_type="application/pdf")
+        response = self.client1.post(
+            reverse('document_upload', kwargs={'project_id': self.project1.pk}),
+            {'files': [pdf_file_a, pdf_file_b]}
+        )
+        self.assertContains(response, "Duplicate file contents detected in upload batch")
+
+

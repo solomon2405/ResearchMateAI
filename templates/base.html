@@ -35,7 +35,10 @@
           <a href="{% url 'profile' %}" class="btn btn-secondary btn-sm" id="nav-profile">
             👤 {{ user.username }}
           </a>
-          <a href="{% url 'logout' %}" class="btn btn-secondary btn-sm" id="nav-logout">Logout</a>
+          <form method="post" action="{% url 'logout' %}" style="display: inline; margin: 0;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary btn-sm" id="nav-logout">Logout</button>
+          </form>
         {% else %}
           <a href="{% url 'login' %}" class="btn btn-secondary btn-sm" id="nav-login">Log In</a>
           <a href="{% url 'register' %}" class="btn btn-primary btn-sm" id="nav-register">Sign Up</a>

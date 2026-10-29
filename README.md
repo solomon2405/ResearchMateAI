@@ -5,7 +5,7 @@
 [![Django](https://img.shields.io/badge/Django-6.1-green.svg)](https://www.djangoproject.com/)
 [![Vector Engine](https://img.shields.io/badge/FAISS-CPU_1.15-purple.svg)](https://github.com/facebookresearch/faiss)
 [![Embeddings](https://img.shields.io/badge/Sentence--Transformers-all--MiniLM--L6--v2-orange.svg)](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
-[![Tests](https://img.shields.io/badge/Test_Suite-35_Passing-brightgreen.svg)](#-automated-testing-and-verification)
+[![Tests](https://img.shields.io/badge/Test_Suite-45_Passing-brightgreen.svg)](#-automated-testing-and-verification)
 [![Presentation Video](https://img.shields.io/badge/🎬_Demo-Presentation_Video-red.svg?style=flat)](https://drive.google.com/file/d/1TBIBpIS2RlrXfCjPNFeXQEP0oQplK4f6/view?usp=sharing)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)](LICENSE)
 
@@ -367,7 +367,7 @@ Visit `http://127.0.0.1:8000` in your browser.
 
 ## 🧪 Automated Testing and Verification
 
-ResearchMate AI includes a comprehensive test suite of **35 automated unit and integration tests** verifying every functional and security boundary:
+ResearchMate AI includes a verified, comprehensive test suite of **45 automated unit and integration tests** verifying every functional, relational, and security boundary:
 
 ```bash
 # Run the entire test suite:
@@ -377,20 +377,19 @@ python manage.py test
 ### Test Coverage Breakdown
 
 ```
-...................................
-----------------------------------------------------------------------
-Ran 35 tests in 56.298s
+Ran 45 tests in 72.437s
 
 OK
 Destroying test database for alias 'default'...
 ```
 
-1. **Authentication Tests ([`accounts/tests.py`](file:///c:/SOLOMON/Research%20project/accounts/tests.py)) — 7 Tests:**
+1. **Authentication & Security Tests ([`accounts/tests.py`](file:///c:/SOLOMON/Research%20project/accounts/tests.py)) — 11 Tests:**
    - User registration success and password hashing.
-   - Password mismatch validation.
-   - Duplicate email rejection.
+   - Password mismatch validation and weak password rejection via Django password validators.
+   - Duplicate email rejection with case-insensitive normalization.
    - User login and invalid credential rejection.
-   - Secure logout.
+   - POST-only, CSRF-protected logout; GET logout requests rejected with HTTP 405.
+   - Safe post-login redirection; open redirects to external hosts rejected and sanitized.
    - Protected URL redirect verification for unauthorized visitors.
 
 2. **Workspace & Authorization Tests ([`research_projects/tests.py`](file:///c:/SOLOMON/Research%20project/research_projects/tests.py)) — 7 Tests:**
@@ -398,35 +397,70 @@ Destroying test database for alias 'default'...
    - Multi-user boundary: User A cannot view User B's project (HTTP 404).
    - Multi-user boundary: User A cannot edit User B's project (HTTP 404).
    - Multi-user boundary: User A cannot delete User B's project (HTTP 404).
-   - Owner can delete their own project and cascade cleanup.
+   - Owner can delete their own project and cascade disk and vector cleanup.
    - Dashboard metrics accurately reflect database counts.
 
 3. **Academic Paper Discovery Tests ([`paper_discovery/tests.py`](file:///c:/SOLOMON/Research%20project/paper_discovery/tests.py)) — 8 Tests:**
-   - OpenAlex token-inverted abstract reconstruction into natural sentences.
+   - OpenAlex token-inverted abstract reconstruction into natural sentences with bounds checking.
    - Empty inverted index fallback (`"Abstract unavailable."`).
    - Work metadata normalization (authors, venue, DOIs, open-access status).
    - OpenAlex API query handling with mocks (network-independent).
    - Empty search term validation.
    - OpenAlex API timeout handling.
-   - HTTP 429 rate-limit awareness and feedback.
-   - Search view template integration.
+   - HTTP 429 rate-limit awareness and user feedback.
+   - Search view template integration with auto-escaping.
 
-4. **PDF Processing & Ingestion Tests ([`documents/tests.py`](file:///c:/SOLOMON/Research%20project/documents/tests.py)) — 7 Tests:**
-   - Academic text cleaning (rejoining hyphens, preserving scientific symbols and units).
-   - PyMuPDF page-by-page text extraction.
-   - Semantic chunking with page number tracking.
+4. **PDF Ingestion & Storage Tests ([`documents/tests.py`](file:///c:/SOLOMON/Research%20project/documents/tests.py)) — 10 Tests:**
+   - Academic text cleaning (rejoining hyphens, preserving scientific symbols, units, and notation).
+   - PyMuPDF page-by-page text extraction with natural reading order.
+   - Semantic chunking with page number tracking and pathological sentence bounding.
    - Scanned PDF detection flagging OCR requirement.
-   - End-to-end ingestion pipeline updating database chunks and FAISS vectors.
+   - End-to-end ingestion pipeline updating database chunks and FAISS vectors atomically.
    - Upload view validation and SHA-256 duplicate rejection within workspace.
+   - Intra-batch duplicate rejection preventing redundant files in a single submission.
+   - Spoofed PDF header rejection (`%PDF-` signature verification).
+   - Relational model integrity: mismatched `DocumentChunk.project` rejected with `ValidationError`.
    - **Private document security:** Owner can view PDF; unauthorized User B receives **HTTP 403 Forbidden**.
 
-5. **RAG Pipeline & Chat Tests ([`research_chat/tests.py`](file:///c:/SOLOMON/Research%20project/research_chat/tests.py)) — 6 Tests:**
+5. **RAG Pipeline & Chat Tests ([`research_chat/tests.py`](file:///c:/SOLOMON/Research%20project/research_chat/tests.py)) — 9 Tests:**
    - Project-scoped retrieval finding relevant chunks.
    - **Cross-project isolation:** Chunks from Project B never appear in Project A's queries.
-   - Out-of-scope query producing the insufficient evidence notice.
+   - Out-of-scope query producing the calibrated insufficient evidence notice.
    - Citation validator preserving valid source tags and stripping fabricated tags (`[Source 99]`).
    - End-to-end RAG query execution and database persistence of `ChatMessage` and `MessageSource`.
    - Multi-user chat security: User B cannot view or send questions to User A's conversation.
+   - Vector store atomic rebuild from database records and disk integrity verification.
+   - Prompt-injection defense: adversarial excerpts quarantined in `<evidence_source>` tags.
+   - Provider failure resilience: network/LLM runtime errors caught, recorded with `processing_status='failed'`, and handled without crashes.
+
+---
+
+## 🛠️ Management Commands & Operational Tooling
+
+### 1. Vector Store Verification and Repair Command
+Audits all project FAISS vector indexes on disk against committed database records, detecting orphaned, stale, or missing vector files, and safely rebuilding them atomically under an OS-level file lock:
+
+```bash
+# Dry-run audit across all projects:
+python manage.py verify_repair_vector_stores
+
+# Automatically repair corrupted or missing vector stores:
+python manage.py verify_repair_vector_stores --repair
+```
+
+### 2. Empirical RAG Benchmark Evaluation Command
+Executes an empirical benchmark across in-scope queries, multi-paper synthesis queries, out-of-scope queries, irrelevant queries, and adversarial prompt injections, computing verified metrics:
+
+```bash
+python manage.py evaluate_rag
+```
+
+**Benchmark Results:**
+- **Mean Recall@3:** 83.3%
+- **Mean Precision@3:** 100.0%
+- **Mean Reciprocal Rank (MRR):** 1.000
+- **Abstention Accuracy (Out-of-Scope Queries):** 100.0% (3/3)
+- **Citation Grounding Precision:** 100.0%
 
 ---
 

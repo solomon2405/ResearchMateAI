@@ -48,6 +48,16 @@ class RegisterForm(forms.ModelForm):
 
         if password and password_confirm and password != password_confirm:
             self.add_error('password_confirm', "Passwords do not match.")
+
+        if password:
+            from django.contrib.auth.password_validation import validate_password
+            username = cleaned_data.get('username')
+            user_instance = User(username=username) if username else None
+            try:
+                validate_password(password, user=user_instance)
+            except forms.ValidationError as error:
+                self.add_error('password', error)
+
         return cleaned_data
 
 

@@ -1,12 +1,16 @@
 import json
+import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
+from django.core.exceptions import PermissionDenied
 from django.views.decorators.http import require_POST
 from django.contrib import messages
 from research_projects.models import ResearchProject
 from .models import ChatConversation, ChatMessage, MessageSource
 from .services.rag_pipeline import execute_rag_query
+
+logger = logging.getLogger(__name__)
 
 @login_required
 def chat_view(request, conversation_id=None):
@@ -96,10 +100,17 @@ def send_message_api(request, conversation_id):
             'has_sufficient_evidence': result['has_sufficient_evidence'],
             'top_score': result['top_score'],
         })
+    except PermissionDenied as e:
+        logger.warning(f"Permission denied during RAG query for user {request.user.id}: {e}")
+        return JsonResponse({'status': 'error', 'error': 'You do not have permission to query this conversation.'}, status=403)
+    except ValueError as e:
+        logger.warning(f"Validation error during RAG query: {e}")
+        return JsonResponse({'status': 'error', 'error': str(e)}, status=400)
     except Exception as e:
+        logger.exception(f"Unexpected error in send_message_api for conversation {conversation_id}: {e}")
         return JsonResponse({
             'status': 'error',
-            'error': str(e)
+            'error': 'An internal error occurred while generating your research answer. Please try again later.'
         }, status=500)
 
 

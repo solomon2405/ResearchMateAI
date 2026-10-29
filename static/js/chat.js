@@ -107,11 +107,15 @@ document.addEventListener('DOMContentLoaded', function () {
         const chip = document.createElement('a');
         chip.className = 'citation-chip';
         // Link directly to authorized PDF viewer with page hash
-        chip.href = `/documents/${cit.document_id}/view/#page=${cit.page_reference.split('-')[0]}`;
+        const pageNum = (cit.page_reference || '1').toString().split('-')[0];
+        chip.href = `/documents/${encodeURIComponent(cit.document_id)}/view/#page=${encodeURIComponent(pageNum)}`;
         chip.target = '_blank';
         chip.rel = 'noopener noreferrer';
-        chip.title = `Excerpt: ${cit.excerpt}`;
-        chip.innerHTML = `<span>📄 [Source ${idx + 1}] ${cit.filename} (p. ${cit.page_reference})</span>`;
+        chip.title = `Excerpt: ${cit.excerpt || ''}`;
+        
+        const labelSpan = document.createElement('span');
+        labelSpan.textContent = `📄 [Source ${idx + 1}] ${cit.filename} (p. ${cit.page_reference})`;
+        chip.appendChild(labelSpan);
         chips.appendChild(chip);
       });
 
